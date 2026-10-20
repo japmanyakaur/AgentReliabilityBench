@@ -91,3 +91,4 @@ class RunConfig:
     judge_model: str = "gemini-3.5-flash-lite"  # for constraint checking
     judge_provider: str = "google"  # provider for the judge model
     max_families: Optional[int] = None  # limit number of task families (None = all)
+    skip_families: int = 0  # skip first N families (for resuming)
