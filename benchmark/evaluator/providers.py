@@ -14,6 +14,11 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+class DailyQuotaExhausted(Exception):
+    """Raised when Google's daily free-tier quota (500 req/day) is exhausted."""
+    pass
+
+
 @dataclass
 class LLMResponse:
     """Standardized response from any provider."""
@@ -196,10 +201,26 @@ class GoogleProvider(BaseProvider):
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower():
-                    wait = 60 if attempt < max_retries - 1 else 0
-                    if wait:
-                        logger.warning(f"Rate limited (attempt {attempt+1}/{max_retries}), waiting {wait}s...")
-                        time.sleep(wait)
+                    # Check if it's a DAILY quota — look for "PerDay" in quota ID
+                    # or retry delay > 600 seconds (10 minutes)
+                    is_daily = "PerDay" in err_str
+                    if not is_daily:
+                        import re
+                        delay_match = re.search(r'seconds:\s*(\d+)', err_str)
+                        if delay_match and int(delay_match.group(1)) > 600:
+                            is_daily = True
+
+                    if is_daily:
+                        logger.error("DAILY QUOTA EXHAUSTED (500 req/day). Stopping.")
+                        raise DailyQuotaExhausted(
+                            "Daily quota exhausted (500 requests/day). "
+                            "Saving partial results and stopping."
+                        )
+
+                    # Per-minute rate limit — wait and retry
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Rate limited (attempt {attempt+1}/{max_retries}), waiting 60s...")
+                        time.sleep(60)
                         GoogleProvider._last_call_time = time.time()
                         continue
                 raise
