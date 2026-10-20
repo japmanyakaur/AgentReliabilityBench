@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Optional
 
 from .config import MODELS, CONFIGURATIONS, RunConfig
-from .providers import get_provider, LLMResponse
+from .providers import get_provider, LLMResponse, DailyQuotaExhausted
 from .judge import Judge
 from .metrics import compute_all_metrics
 
@@ -103,6 +103,8 @@ def run_single_task(
             "finish_reason": resp.finish_reason,
             "status": "success",
         }
+    except DailyQuotaExhausted:
+        raise  # let this propagate up to stop the run
     except Exception as e:
         logger.error(f"Error on {family['family_id']}/{variant_name}: {e}")
         return {
@@ -128,14 +130,22 @@ def run_evaluation(config: RunConfig) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     families = load_task_families(config.task_families_dir)
+    if config.skip_families:
+        families = families[config.skip_families:]
+        logger.info(f"  Skipping first {config.skip_families} task families")
     if config.max_families:
         families = families[:config.max_families]
         logger.info(f"  Limited to {config.max_families} task families")
     judge = Judge(model=config.judge_model, provider_name=config.judge_provider)
 
     all_results = {}
+    quota_exhausted = False
 
     for model_name in config.models:
+        if quota_exhausted:
+            logger.warning(f"Skipping model {model_name} due to daily quota exhaustion")
+            break
+
         model_info = MODELS[model_name]
         logger.info(f"\n{'='*60}\nEvaluating model: {model_name}\n{'='*60}")
 
@@ -143,61 +153,82 @@ def run_evaluation(config: RunConfig) -> dict:
         model_results = {}
 
         for config_key in config.configurations:
+            if quota_exhausted:
+                logger.warning(f"Skipping config {config_key} due to daily quota exhaustion")
+                break
+
             logger.info(f"  Configuration: {config_key}")
             config_results = {}
+            completed_families = 0
 
             for family in families:
+                if quota_exhausted:
+                    break
+
                 fid = family["family_id"]
                 family_results = {}
                 trial_outcomes = []
 
-                for repeat in range(config.repeats):
-                    logger.info(f"    {fid} repeat {repeat+1}/{config.repeats}")
-                    repeat_results = {}
+                try:
+                    for repeat in range(config.repeats):
+                        logger.info(f"    {fid} repeat {repeat+1}/{config.repeats}")
+                        repeat_results = {}
 
-                    for vname, variant in family["variants"].items():
-                        # Run task
-                        result = run_single_task(
-                            provider, family, vname, variant,
-                            config_key, config.temperature,
-                            config.max_tokens, config.timeout_seconds,
-                        )
-
-                        # Judge response
-                        if result["status"] == "success":
-                            judge_result = judge.evaluate(
-                                task_prompt=variant["prompt"],
-                                agent_response=result["response"],
-                                expected_outcome=variant.get("expected_outcome", {}),
-                                constraint_checklist=variant.get("constraint_checklist", []),
-                                priority_rule=variant.get("priority_rule"),
-                                variant_type=variant["variant_type"],
+                        for vname, variant in family["variants"].items():
+                            # Run task
+                            result = run_single_task(
+                                provider, family, vname, variant,
+                                config_key, config.temperature,
+                                config.max_tokens, config.timeout_seconds,
                             )
-                            result["judge"] = judge_result
-                        else:
-                            result["judge"] = {"overall": "ERROR"}
 
-                        repeat_results[vname] = result
+                            # Judge response
+                            if result["status"] == "success":
+                                judge_result = judge.evaluate(
+                                    task_prompt=variant["prompt"],
+                                    agent_response=result["response"],
+                                    expected_outcome=variant.get("expected_outcome", {}),
+                                    constraint_checklist=variant.get("constraint_checklist", []),
+                                    priority_rule=variant.get("priority_rule"),
+                                    variant_type=variant["variant_type"],
+                                )
+                                result["judge"] = judge_result
+                            else:
+                                result["judge"] = {"overall": "ERROR"}
 
-                    # Track trial pass/fail for RS@k (based on neutral variant)
-                    neutral_judge = repeat_results.get("neutral", {}).get("judge", {})
-                    trial_outcomes.append(neutral_judge.get("overall") == "PASS")
+                            repeat_results[vname] = result
 
-                    # Store repeat
-                    family_results[f"repeat_{repeat}"] = repeat_results
+                        # Track trial pass/fail for RS@k (based on neutral variant)
+                        neutral_judge = repeat_results.get("neutral", {}).get("judge", {})
+                        trial_outcomes.append(neutral_judge.get("overall") == "PASS")
 
-                family_results["trial_outcomes"] = trial_outcomes
-                config_results[fid] = family_results
+                        # Store repeat
+                        family_results[f"repeat_{repeat}"] = repeat_results
 
-            model_results[config_key] = config_results
+                except DailyQuotaExhausted as e:
+                    logger.error(f"\n{'!'*60}")
+                    logger.error(f"DAILY QUOTA EXHAUSTED: {e}")
+                    logger.error(f"Completed {completed_families} families for {model_name}/{config_key}")
+                    logger.error(f"Saving partial results...")
+                    logger.error(f"{'!'*60}\n")
+                    quota_exhausted = True
 
-        all_results[model_name] = model_results
+                if trial_outcomes:  # save even partial family results
+                    family_results["trial_outcomes"] = trial_outcomes
+                    config_results[fid] = family_results
+                    completed_families += 1
 
-        # Save per-model results incrementally
-        model_file = output_dir / f"raw_{model_name}.json"
-        with open(model_file, "w") as f:
-            json.dump(model_results, f, indent=2, default=str)
-        logger.info(f"  Saved raw results to {model_file}")
+            if config_results:
+                model_results[config_key] = config_results
+
+        if model_results:
+            all_results[model_name] = model_results
+
+            # Save per-model results incrementally
+            model_file = output_dir / f"raw_{model_name}.json"
+            with open(model_file, "w") as f:
+                json.dump(model_results, f, indent=2, default=str)
+            logger.info(f"  Saved raw results to {model_file}")
 
     # Save combined raw results
     with open(output_dir / "all_raw_results.json", "w") as f:
