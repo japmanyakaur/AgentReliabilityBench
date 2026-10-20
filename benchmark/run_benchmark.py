@@ -67,6 +67,8 @@ def main():
                         help="Parallel workers (default: 4)")
     parser.add_argument("--max-families", type=int, default=None,
                         help="Limit number of task families (default: all)")
+    parser.add_argument("--skip-families", type=int, default=0,
+                        help="Skip first N families (for resuming after quota limit)")
 
     args = parser.parse_args()
 
@@ -84,6 +86,7 @@ def main():
             judge_provider=args.judge_provider,
             parallel_workers=1,
             max_families=max_fam,
+            skip_families=args.skip_families,
         )
         logger.info(f"🧪 PILOT MODE: 1 model, 1 config, 2 repeats, {max_fam} families")
     else:
@@ -98,6 +101,7 @@ def main():
             judge_provider=args.judge_provider,
             parallel_workers=args.workers,
             max_families=args.max_families,
+            skip_families=args.skip_families,
         )
 
     # Validate
