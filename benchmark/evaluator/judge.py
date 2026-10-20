@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Optional
 
-from .providers import get_provider, LLMResponse
+from .providers import get_provider, LLMResponse, DailyQuotaExhausted
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ Output valid JSON with this schema:
 class Judge:
     """Evaluates agent responses against task constraints."""
 
-    def __init__(self, model: str = "gemini-1.5-flash", provider_name: str = "google"):
+    def __init__(self, model: str = "gemini-3.5-flash-lite", provider_name: str = "google"):
         self.provider = get_provider(provider_name, model)
 
     def evaluate(
@@ -82,6 +82,8 @@ class Judge:
                 "output": resp.output_tokens,
             }
             return result
+        except DailyQuotaExhausted:
+            raise  # propagate up to stop the run gracefully
         except Exception as e:
             logger.error(f"Judge evaluation failed: {e}")
             return {
