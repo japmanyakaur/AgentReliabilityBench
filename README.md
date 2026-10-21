@@ -103,3 +103,11 @@ The judge evaluates each constraint independently and returns a structured verdi
 ## Output
 
 Results land in `results/YYYYMMDD_HHMMSS/`:
+
+@unpublished{agentreliabilitybench2026,
+  title  = {AgentReliabilityBench: A Controlled Benchmark for Reliability,
+            Consistency, and Conflict Resolution in LLM Agents},
+  author = {Manmeet Singh Kapoor ,Gurleen Kaur and Japmanya Kaur},
+  year   = {2026},
+  note   = {Manuscript in preparation}
+}
