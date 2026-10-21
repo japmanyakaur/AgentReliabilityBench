@@ -104,10 +104,17 @@ The judge evaluates each constraint independently and returns a structured verdi
 
 Results land in `results/YYYYMMDD_HHMMSS/`:
 
+## Citation
+
+This research manuscript is currently in preparation and has not yet been submitted for publication.
+
+```bibtex
 @unpublished{agentreliabilitybench2026,
-  title  = {AgentReliabilityBench: A Controlled Benchmark for Reliability,
-            Consistency, and Conflict Resolution in LLM Agents},
-  author = {Manmeet Singh Kapoor ,Gurleen Kaur and Japmanya Kaur},
+  title  = {AgentReliabilityBench: A Controlled Benchmark for
+            Reliability, Consistency, and Conflict Resolution
+            in LLM Agents},
+  author = {Manmeet Singh Kapoor and Gurleen Kaur and Japmanya Kaur},
   year   = {2026},
   note   = {Manuscript in preparation}
 }
+```
