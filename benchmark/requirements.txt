@@ -1,0 +1,11 @@
+# AgentReliabilityBench — Python dependencies
+# Install: pip install -r requirements.txt
+
+# Core
+numpy>=1.24.0
+scipy>=1.10.0
+
+# LLM Providers
+openai>=1.0.0          # For GPT-4o, GPT-4o-mini, and Together AI (uses OpenAI-compatible API)
+anthropic>=0.18.0      # For Claude 3.5 Sonnet
+google-generativeai>=0.4.0  # For Gemini 1.5 Flash
