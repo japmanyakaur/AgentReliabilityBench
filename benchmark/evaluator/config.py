@@ -49,6 +49,25 @@ MODELS = {
         "cost_per_1m_input": 1.20,
         "cost_per_1m_output": 1.20,
     },
+    # ── Groq free-tier models ──
+    "llama-3.3-70b": {
+        "provider": "groq",
+        "model_id": "llama-3.3-70b-versatile",
+        "cost_per_1m_input": 0.0,
+        "cost_per_1m_output": 0.0,
+    },
+    "llama-3.1-8b-groq": {
+        "provider": "groq",
+        "model_id": "llama-3.1-8b-instant",
+        "cost_per_1m_input": 0.0,
+        "cost_per_1m_output": 0.0,
+    },
+    "qwen-3-32b": {
+        "provider": "groq",
+        "model_id": "qwen/qwen3-32b",
+        "cost_per_1m_input": 0.0,
+        "cost_per_1m_output": 0.0,
+    },
 }
 
 # ── Agent configurations ────────────────────────────────────────────
