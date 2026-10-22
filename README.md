@@ -1,120 +1,143 @@
 # AgentReliabilityBench
 
-A benchmark for measuring how reliably LLM-based agents follow instructions when those instructions are rephrased, complicated, or made deliberately contradictory. Instead of testing what a model *can* do, this tests whether it does the *same thing consistently* across surface-level variations of the same task.
+A controlled benchmark for measuring LLM agent reliability — consistency, conflict resolution, and repeatability — under instruction variation.
 
-The core idea: take a task, produce five variants of it (neutral, paraphrased, high-constraint, conflicting, ambiguous), run each through an agent, and measure whether the outputs stay consistent and correct.
+## Paper
 
-## What this measures
+**"AgentReliabilityBench: A Controlled Benchmark for Reliability, Consistency, and Conflict Resolution in LLM Agents"**
 
-Seven metrics, each targeting a different failure mode:
+## Quick Start
 
-| Metric | Question it answers |
-|--------|-------------------|
-| DCR (Decision Consistency Rate) | Does the agent give the same answer when the question is rephrased? |
-| IAR (Instruction Adherence Rate) | What fraction of explicit constraints does it actually satisfy? |
-| CRA (Conflict Resolution Accuracy) | When instructions contradict, does it follow the stated priority? |
-| CPS (Context Perturbation Stability) | Does performance hold up when you pile on extra constraints? |
-| RS@k (Repeatable Success) | If you run the same task k times, do all k succeed? |
-| AHR (Ambiguity Handling Rate) | Does it ask for clarification when information is genuinely missing? |
-| RD (Reliability Degradation) | How fast does performance drop as task complexity increases? |
-
-RS@k is adapted from the pass^k metric in [tau-bench](https://github.com/sierra-research/tau-bench) (Sierra Research, 2024).
-
-## Task structure
-
-60 task families across three domains:
-
-- **Scheduling** (20 families) -- meeting coordination, calendar conflicts, timezone handling
-- **Customer service** (20 families) -- policy lookup, complaint resolution, escalation decisions
-- **Information retrieval** (20 families) -- multi-source queries, filtering, ranked results
-
-Each family has five variants sharing the same underlying task but differing in surface form or constraint structure. The `neutral` and `paraphrase` variants should produce identical outcomes (these form the equivalence subset for DCR). The `high_constraint`, `conflict`, and `ambiguous` variants test robustness.
-
-## Setup
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/AgentReliabilityBench.git
 cd AgentReliabilityBench
 python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+source venv/bin/activate        # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env` and add your API keys:
+### 2. Set up API keys
 
 ```bash
 cp .env.example .env
+# Edit .env and add your API keys
 ```
 
-The benchmark uses a judge model (Gemini 3.5 Flash Lite by default) to evaluate agent responses against constraint checklists. You need at least one agent API key and a judge API key.
+Then load them before running:
 
-**Supported providers:**
+```bash
+# Linux/Mac
+export $(cat .env | xargs)
 
-| Provider | Env variable | Models |
-|----------|-------------|--------|
-| Google | `GOOGLE_API_KEY` | Gemini 3.5 Flash Lite (also used as default judge) |
-| Groq | `GROQ_API_KEY` | GPT-OSS 120B, GPT-OSS 20B, Qwen 3.8 27B |
-| OpenAI | `OPENAI_API_KEY` | GPT-4o, GPT-4o-mini |
+# Windows PowerShell
+Get-Content .env | ForEach-Object {
+    if ($_ -match "^([^#][^=]+)=(.+)$") {
+        [Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+    }
+}
+```
 
-
-## Running the benchmark
-
-**Pilot run** (sanity check -- small, fast, cheap):
+### 3. Run a pilot test (cheapest option)
 
 ```bash
 python run_benchmark.py --pilot
 ```
 
-**Full run** (all registered models, all configs, 5 repeats):
+This runs 1 model (GPT-4o-mini), 1 configuration (direct), 2 repeats — costs ~$0.50.
+
+### 4. Run the full benchmark
 
 ```bash
+# All models, all configs, 5 repeats (~27,000 API calls)
 python run_benchmark.py
-```
 
-**Custom runs:**
+# Or customize:
+python run_benchmark.py --models gpt-4o-mini gemini-1.5-flash --configs direct cot --repeats 3
 
-```bash
-# Specific models and configs
-python run_benchmark.py --models gemini-3.5-flash-lite gpt-oss-120b --configs direct cot --repeats 3
-
-# Single task family (debugging)
+# Test a single task family:
 python run_benchmark.py --pilot --family SCHED-001
-
-# Resume after hitting a daily quota limit
-python run_benchmark.py --models gemini-3.5-flash-lite --skip-families 15
 ```
 
-The runner saves results incrementally per model, so if a run is interrupted (rate limits, quota exhaustion), you don't lose completed work.
+## Project Structure
 
-## Agent configurations
+```
+AgentReliabilityBench/
+├── run_benchmark.py                          # CLI entry point
+├── requirements.txt                          # Python dependencies
+├── .env.example                              # API key template
+├── task_families_scheduling.json             # 20 scheduling task families
+├── task_families_customer_service.json        # 20 customer service task families
+├── task_families_information_retrieval.json   # 20 information retrieval task families
+└── evaluator/
+    ├── __init__.py
+    ├── config.py       # Model registry (7 models), 3 agent configurations
+    ├── providers.py    # OpenAI / Anthropic / Google / Together API abstraction
+    ├── judge.py        # LLM-as-judge (GPT-4o-mini) constraint evaluation
+    ├── metrics.py      # All 7 metrics: DCR, IAR, CRA, CPS, RS@k, AHR, RD
+    ├── stats.py        # Statistical analysis: bootstrap CI, permutation tests, ICC
+    └── runner.py       # Full pipeline orchestration
+```
 
-Each model is tested under three prompting strategies:
+## Metrics
 
-- **direct** -- the task instruction alone, no additional scaffolding
-- **cot** -- chain-of-thought prompt appended ("think step by step...")
-- **tool** -- function-calling mode with tool definitions provided
+| Metric | What it measures |
+|--------|-----------------|
+| **DCR** (Decision Consistency Rate) | Same answer to same question asked differently? |
+| **IAR** (Instruction Adherence Rate) | Fraction of constraints satisfied |
+| **CRA** (Conflict Resolution Accuracy) | Follows the right instruction when they conflict? |
+| **CPS** (Context Perturbation Stability) | Maintains performance under added complexity? |
+| **RS@k** (Repeatable Success) | All k repeated trials succeed? (Credits τ-bench pass^k) |
+| **AHR** (Ambiguity Handling Rate) | Asks for clarification when info is missing? |
+| **RD** (Reliability Degradation) | Rate of performance decline under stress |
 
-This lets you compare how much prompting strategy affects reliability independently of model capability.
+## Models Supported
 
-## Evaluation pipeline
-
-The judge evaluates each constraint independently and returns a structured verdict. This avoids the known problems with holistic LLM-as-judge scoring (position bias, verbosity preference) by reducing each judgment to a binary pass/fail on a specific, concrete constraint.
+| Model | Provider | API Key Needed |
+|-------|----------|---------------|
+| GPT-4o | OpenAI | `OPENAI_API_KEY` |
+| GPT-4o-mini | OpenAI | `OPENAI_API_KEY` |
+| Claude 3.5 Sonnet | Anthropic | `ANTHROPIC_API_KEY` |
+| Gemini 1.5 Flash | Google | `GOOGLE_API_KEY` |
+| Llama 3.1 8B | Together AI | `TOGETHER_API_KEY` |
+| Llama 3.1 70B | Together AI | `TOGETHER_API_KEY` |
+| Qwen 2.5 72B | Together AI | `TOGETHER_API_KEY` |
 
 ## Output
 
-Results land in `results/YYYYMMDD_HHMMSS/`:
+Results are saved to `results/YYYYMMDD_HHMMSS/`:
+
+- `all_raw_results.json` — Every API response and judge verdict
+- `aggregate_metrics.json` — Computed metrics per model per configuration
+- `raw_<model>.json` — Per-model raw results (saved incrementally)
+
+## CLI Options
+
+```
+--models       Models to evaluate (space-separated)
+--configs      Configurations: direct, cot, tool
+--repeats      Number of repeated trials (default: 5)
+--temperature  Sampling temperature (default: 0.7)
+--pilot        Quick test: 1 model, 1 config, 2 repeats
+--family       Run only one task family (e.g., SCHED-001)
+--judge-model  Judge model (default: gpt-4o-mini)
+--workers      Parallel workers (default: 4)
+--output-dir   Where to save results (default: results/)
+--task-dir     Where task family JSONs live (default: current dir)
+```
+
+## License
+
+MIT
 
 ## Citation
 
-This research manuscript is currently in preparation and has not yet been submitted for publication.
-
 ```bibtex
-@unpublished{agentreliabilitybench2026,
-  title  = {AgentReliabilityBench: A Controlled Benchmark for
-            Reliability, Consistency, and Conflict Resolution
-            in LLM Agents},
-  author = {Manmeet Singh Kapoor and Gurleen Kaur and Japmanya Kaur},
-  year   = {2026},
-  note   = {Manuscript in preparation}
+@article{kapoor2026agentreliabilitybench,
+  title={AgentReliabilityBench: A Controlled Benchmark for Reliability, Consistency, and Conflict Resolution in LLM Agents},
+  author={Kapoor, Manmeet Singh and Kaur, Gurleen},
+  journal={IEEE Access},
+  year={2026}
 }
 ```
