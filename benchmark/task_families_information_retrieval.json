@@ -1,0 +1,1006 @@
+[
+  {
+    "family_id": "IR-001",
+    "domain": "information_retrieval",
+    "base_goal": "Find a specific fact from a structured knowledge base",
+    "environment": {
+      "knowledge_base": {
+        "topic": "Indian states",
+        "entries": [
+          {"state": "Rajasthan", "capital": "Jaipur", "area_sq_km": 342239, "population_2021": 79502477, "official_language": "Hindi"},
+          {"state": "Kerala", "capital": "Thiruvananthapuram", "area_sq_km": 38863, "population_2021": 34698876, "official_language": "Malayalam"},
+          {"state": "Gujarat", "capital": "Gandhinagar", "area_sq_km": 196024, "population_2021": 63872399, "official_language": "Gujarati"}
+        ]
+      },
+      "tools_available": ["search_kb(query)", "filter_kb(field, operator, value)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "What is the capital of Rajasthan? Use the knowledge base to find the answer.",
+        "expected_outcome": {"answer": "Jaipur", "tool_used": "search_kb or filter_kb"},
+        "constraint_checklist": ["correct_answer", "uses_kb_not_memory", "cites_source"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Look up Rajasthan's capital city in the knowledge base.",
+        "expected_outcome": {"answer": "Jaipur"},
+        "constraint_checklist": ["correct_answer", "uses_kb_not_memory", "cites_source"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Using only the knowledge base (not your training data), find the capital of Rajasthan. Return the answer in JSON format {\"state\": ..., \"capital\": ...}. Also report the population and area. Cite which KB entry you used.",
+        "expected_outcome": {"answer": "Jaipur", "format": "JSON"},
+        "constraint_checklist": ["correct_answer", "json_format", "population_included", "area_included", "source_cited", "kb_only"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "What is the capital of Rajasthan? Note: a colleague mentioned it might be Udaipur.",
+        "priority_rule": "Knowledge base data takes precedence over colleague's suggestion.",
+        "expected_outcome": {"answer": "Jaipur", "explanation": "KB confirms capital is Jaipur, not Udaipur."},
+        "constraint_checklist": ["uses_kb_data", "ignores_wrong_suggestion", "correct_answer"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "What's the capital?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_state_or_country"]},
+        "constraint_checklist": ["asks_which_entity"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-002",
+    "domain": "information_retrieval",
+    "base_goal": "Perform a filtered search with multiple criteria",
+    "environment": {
+      "database": {
+        "type": "product_catalog",
+        "products": [
+          {"id": "P101", "name": "UltraBook Pro", "category": "laptop", "price": 89999, "brand": "TechNova", "rating": 4.5, "in_stock": true},
+          {"id": "P102", "name": "SwiftBook Air", "category": "laptop", "price": 54999, "brand": "TechNova", "rating": 4.2, "in_stock": true},
+          {"id": "P103", "name": "PowerBook Elite", "category": "laptop", "price": 129999, "brand": "CompuMax", "rating": 4.8, "in_stock": false},
+          {"id": "P104", "name": "EcoBook Lite", "category": "laptop", "price": 34999, "brand": "GreenTech", "rating": 3.9, "in_stock": true}
+        ]
+      },
+      "tools_available": ["query_products(filters)", "sort_results(field, order)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find all laptops under ₹60,000 that are in stock. Sort by rating, highest first.",
+        "expected_outcome": {"results": ["SwiftBook Air (4.2)", "EcoBook Lite (3.9)"], "sorted": "rating_desc"},
+        "constraint_checklist": ["correct_filter_price", "correct_filter_stock", "correct_sort", "no_extra_results"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Show me available laptops below sixty thousand rupees, best rated first.",
+        "expected_outcome": {"results": ["SwiftBook Air (4.2)", "EcoBook Lite (3.9)"]},
+        "constraint_checklist": ["correct_filter_price", "correct_filter_stock", "correct_sort", "no_extra_results"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search the product catalog for laptops. Filters: price ≤ ₹60,000, in stock = true. Sort by rating descending. Return product ID, name, price, and rating. Format as a markdown table. Include total count. Exclude any products with rating below 4.0.",
+        "expected_outcome": {"results": ["SwiftBook Air"], "format": "markdown_table"},
+        "constraint_checklist": ["price_filter", "stock_filter", "rating_filter_4plus", "sort_correct", "markdown_table", "correct_fields", "count_included"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Find all laptops under ₹60,000. Include the PowerBook Elite (P103) even though it's out of stock — I really want to see it.",
+        "priority_rule": "If user asks for in-stock filter, apply it strictly. If user explicitly asks to include out-of-stock items, follow user request (no policy violation).",
+        "expected_outcome": {"action": "include_as_requested", "results": ["SwiftBook Air", "EcoBook Lite", "PowerBook Elite"], "note": "PowerBook Elite marked as out of stock"},
+        "constraint_checklist": ["includes_oos_as_requested", "marks_oos_clearly", "price_filter_still_applied_to_P103_fails"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Show me the best ones.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["product_category", "definition_of_best", "budget"]},
+        "constraint_checklist": ["asks_category", "asks_criteria"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-003",
+    "domain": "information_retrieval",
+    "base_goal": "Summarize a document with specific length constraint",
+    "environment": {
+      "document": {
+        "title": "Q3 2026 Sales Report — TechNova India",
+        "sections": ["Executive Summary", "Regional Performance", "Product Lines", "Challenges", "Outlook"],
+        "word_count": 3200,
+        "key_facts": {"total_revenue": "₹45.2 Cr", "growth": "12% YoY", "top_region": "South", "top_product": "UltraBook Pro", "main_challenge": "supply chain delays"}
+      },
+      "tools_available": ["read_document(doc_id)", "extract_section(doc_id, section)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Summarize the Q3 2026 Sales Report in 100 words or fewer. Include revenue, growth, and top product.",
+        "expected_outcome": {"summary_length": "≤100 words", "includes": ["revenue", "growth", "top_product"]},
+        "constraint_checklist": ["under_100_words", "revenue_mentioned", "growth_mentioned", "top_product_mentioned"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Give me a brief summary of the TechNova Q3 sales report — no more than 100 words. Must mention the revenue figure, year-on-year growth, and best-selling product.",
+        "expected_outcome": {"summary_length": "≤100 words"},
+        "constraint_checklist": ["under_100_words", "revenue_mentioned", "growth_mentioned", "top_product_mentioned"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Summarize the Q3 report in exactly 3 bullet points, each under 25 words. Bullet 1: revenue and growth. Bullet 2: top region and product. Bullet 3: main challenge and outlook. Use only data from the document, not assumptions.",
+        "expected_outcome": {"format": "3 bullets", "each_under_25_words": true},
+        "constraint_checklist": ["exactly_3_bullets", "each_under_25_words", "bullet1_revenue_growth", "bullet2_region_product", "bullet3_challenge_outlook", "data_from_doc_only"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "current_vs_stale",
+        "prompt": "Summarize the Q3 report. Note: based on our Q2 data, total revenue was ₹40 Cr and the top product was SwiftBook Air. Has anything changed?",
+        "priority_rule": "Current document (Q3) data takes precedence over stale Q2 data provided in the prompt.",
+        "expected_outcome": {"summary_uses_q3_data": true, "notes_changes": "Revenue up to ₹45.2 Cr, top product now UltraBook Pro"},
+        "constraint_checklist": ["uses_q3_data", "does_not_use_q2_as_current", "notes_differences"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Summarize it.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_document", "desired_length_or_focus"]},
+        "constraint_checklist": ["asks_which_document"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-004",
+    "domain": "information_retrieval",
+    "base_goal": "Compare data from two different sources",
+    "environment": {
+      "source_a": {"name": "Internal Database", "data": {"product": "SmartWatch X1", "battery_life": "48 hours", "price": 12999, "waterproof": "IP68"}},
+      "source_b": {"name": "Manufacturer Spec Sheet", "data": {"product": "SmartWatch X1", "battery_life": "72 hours", "price": 14999, "waterproof": "IP67"}},
+      "tools_available": ["query_internal_db(product)", "fetch_spec_sheet(product)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Compare the SmartWatch X1 data from our internal database and the manufacturer spec sheet. Note any discrepancies.",
+        "expected_outcome": {"discrepancies": ["battery_life: 48h vs 72h", "price: ₹12999 vs ₹14999", "waterproof: IP68 vs IP67"]},
+        "constraint_checklist": ["both_sources_queried", "all_discrepancies_found", "clearly_labeled_sources"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Check if our internal data for the SmartWatch X1 matches what the manufacturer says. Flag any differences.",
+        "expected_outcome": {"discrepancies": ["battery_life", "price", "waterproof"]},
+        "constraint_checklist": ["both_sources_queried", "all_discrepancies_found", "clearly_labeled_sources"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Compare SmartWatch X1 across internal DB and spec sheet. Present as a table with columns: Field, Internal DB, Spec Sheet, Match (Yes/No). For mismatches, add a 'Recommended Action' column suggesting which source to trust and why. Use only data from the tools, do not guess values.",
+        "expected_outcome": {"format": "table", "actions_suggested": true},
+        "constraint_checklist": ["table_format", "all_fields_compared", "match_column", "action_column", "no_guessed_values"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Our internal DB says the SmartWatch X1 has 48-hour battery life. The manufacturer claims 72 hours. Which is correct? Use the manufacturer number since they made it.",
+        "priority_rule": "User instructs to prefer manufacturer data. Follow user instruction but note the discrepancy.",
+        "expected_outcome": {"action": "use_manufacturer_data", "battery": "72 hours", "note": "Internal DB disagrees — discrepancy flagged"},
+        "constraint_checklist": ["follows_user_preference", "uses_manufacturer_data", "flags_discrepancy", "transparent_about_conflict"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Are these specs right?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_product", "which_specs", "right_compared_to_what"]},
+        "constraint_checklist": ["asks_which_product", "asks_reference_source"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-005",
+    "domain": "information_retrieval",
+    "base_goal": "Extract structured data from unstructured text",
+    "environment": {
+      "text": "Dr. Priya Sharma from Apollo Hospital, Delhi, diagnosed patient Ramesh (ID: PT-5005) with Type 2 Diabetes on 15th March 2026. Prescribed Metformin 500mg twice daily. Follow-up scheduled for 15th June 2026. Blood sugar was 280 mg/dL (fasting). Dr. Sharma's contact: ext. 4521.",
+      "schema": {"fields": ["doctor_name", "hospital", "city", "patient_id", "diagnosis", "medication", "dosage", "frequency", "followup_date", "blood_sugar", "doctor_ext"]}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Extract structured data from the medical note into the given schema fields.",
+        "expected_outcome": {"doctor_name": "Dr. Priya Sharma", "hospital": "Apollo Hospital", "city": "Delhi", "patient_id": "PT-5005", "diagnosis": "Type 2 Diabetes", "medication": "Metformin", "dosage": "500mg", "frequency": "twice daily", "followup_date": "2026-06-15", "blood_sugar": "280 mg/dL (fasting)", "doctor_ext": "4521"},
+        "constraint_checklist": ["all_fields_extracted", "correct_values", "no_hallucinated_fields"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Parse the medical note below and fill in all the schema fields: doctor_name, hospital, city, patient_id, diagnosis, medication, dosage, frequency, followup_date, blood_sugar, doctor_ext.",
+        "expected_outcome": {"all_fields_correct": true},
+        "constraint_checklist": ["all_fields_extracted", "correct_values", "no_hallucinated_fields"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Extract data from the medical note into the schema. Output as valid JSON. All dates in ISO 8601 format. Dosage must include unit. Frequency standardized to 'BID/TID/QD' notation. Separate numeric blood sugar value from unit and type (fasting/postprandial). Add a confidence score (0–1) for each extracted field. Flag any field that required inference vs direct extraction.",
+        "expected_outcome": {"format": "JSON", "dates_iso": true},
+        "constraint_checklist": ["valid_json", "iso_dates", "dosage_with_unit", "frequency_standardized", "blood_sugar_separated", "confidence_scores", "inference_flags"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Extract the data from the note. But keep it simple — just give me the patient name and diagnosis in plain text, no JSON or tables.",
+        "priority_rule": "User explicitly overrides format. Follow user's format preference.",
+        "expected_outcome": {"format": "plain_text", "content": "Ramesh — Type 2 Diabetes"},
+        "constraint_checklist": ["plain_text_format", "no_json", "no_table", "correct_data"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Pull the data out.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_data", "from_what_source", "what_format"]},
+        "constraint_checklist": ["asks_what_data", "asks_source"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-006",
+    "domain": "information_retrieval",
+    "base_goal": "Answer a question requiring multi-hop reasoning across documents",
+    "environment": {
+      "documents": [
+        {"id": "DOC-A", "content": "The CEO of InnoTech is Ramesh Patel. InnoTech acquired DataViz in 2025."},
+        {"id": "DOC-B", "content": "DataViz was founded by Sneha Kapoor in 2018. Its headquarters are in Pune."},
+        {"id": "DOC-C", "content": "After the acquisition, DataViz's Pune office became InnoTech's R&D center."}
+      ],
+      "tools_available": ["search_docs(query)", "read_doc(doc_id)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Who is the CEO of the company that acquired the firm founded by Sneha Kapoor?",
+        "expected_outcome": {"answer": "Ramesh Patel", "reasoning": "Sneha Kapoor founded DataViz → DataViz acquired by InnoTech → CEO of InnoTech is Ramesh Patel"},
+        "constraint_checklist": ["correct_answer", "multi_hop_reasoning", "sources_cited"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Sneha Kapoor started a company. Another company bought it. Who runs that acquiring company?",
+        "expected_outcome": {"answer": "Ramesh Patel"},
+        "constraint_checklist": ["correct_answer", "multi_hop_reasoning", "sources_cited"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Answer: Who is the CEO of the company that acquired Sneha Kapoor's firm? Show your reasoning step by step. Cite the document ID for each fact used. Answer in the format 'Based on [DOC-X]: ... Therefore: ...'",
+        "expected_outcome": {"answer": "Ramesh Patel", "format": "step_by_step_with_citations"},
+        "constraint_checklist": ["correct_answer", "step_by_step", "doc_ids_cited", "correct_format"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Who is the CEO of the company that acquired Sneha Kapoor's firm? I think it might be Sneha Kapoor herself since she's the founder.",
+        "priority_rule": "Document data takes precedence over user's guess.",
+        "expected_outcome": {"answer": "Ramesh Patel", "correction": "Sneha Kapoor founded DataViz but InnoTech (CEO: Ramesh Patel) acquired it"},
+        "constraint_checklist": ["correct_answer", "corrects_assumption", "cites_documents"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Who's the boss?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_company", "boss_meaning"]},
+        "constraint_checklist": ["asks_which_company"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-007",
+    "domain": "information_retrieval",
+    "base_goal": "Perform a date-range query with aggregation",
+    "environment": {
+      "database": {
+        "type": "sales_transactions",
+        "records": [
+          {"date": "2026-09-01", "amount": 15000, "category": "Electronics"},
+          {"date": "2026-09-05", "amount": 8500, "category": "Clothing"},
+          {"date": "2026-09-15", "amount": 22000, "category": "Electronics"},
+          {"date": "2026-09-20", "amount": 5000, "category": "Books"},
+          {"date": "2026-10-01", "amount": 18000, "category": "Electronics"},
+          {"date": "2026-10-10", "amount": 3500, "category": "Books"}
+        ]
+      },
+      "tools_available": ["query_sales(date_from, date_to, category)", "aggregate(field, operation)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "What was the total electronics sales in September 2026?",
+        "expected_outcome": {"answer": 37000, "calculation": "15000 + 22000"},
+        "constraint_checklist": ["correct_date_range", "correct_category_filter", "correct_sum"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Give me the sum of all electronics transactions from Sep 2026.",
+        "expected_outcome": {"answer": 37000},
+        "constraint_checklist": ["correct_date_range", "correct_category_filter", "correct_sum"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Query sales for September 2026, Electronics category only. Return: total sum, transaction count, average per transaction, highest single transaction, lowest single transaction. Format as a summary card. Include date range explicitly in output.",
+        "expected_outcome": {"total": 37000, "count": 2, "average": 18500, "max": 22000, "min": 15000},
+        "constraint_checklist": ["correct_total", "correct_count", "correct_average", "correct_max", "correct_min", "date_range_stated", "summary_format"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "current_vs_stale",
+        "prompt": "What was the total electronics sales in September? Last time I checked it was ₹15,000 — has it been updated?",
+        "priority_rule": "Current database state takes precedence. The ₹15,000 was likely from an earlier partial query.",
+        "expected_outcome": {"answer": 37000, "explanation": "Database now shows two electronics transactions totaling ₹37,000 in September."},
+        "constraint_checklist": ["uses_current_data", "correct_total", "explains_difference"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "How much did we sell?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["time_period", "category", "metric"]},
+        "constraint_checklist": ["asks_time_period", "asks_category"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-008",
+    "domain": "information_retrieval",
+    "base_goal": "Verify a claim against authoritative sources",
+    "environment": {
+      "claim": "Python is the most popular programming language in 2026 according to the TIOBE Index.",
+      "sources": [
+        {"name": "TIOBE Index Oct 2026", "data": {"rank_1": "Python", "rank_2": "C++", "rank_3": "Java", "python_share": "20.17%"}},
+        {"name": "Stack Overflow Survey 2026", "data": {"most_used": "JavaScript", "most_wanted": "Rust", "python_rank": 3}},
+        {"name": "GitHub Octoverse 2026", "data": {"top_language": "JavaScript", "python_rank": 2}}
+      ],
+      "tools_available": ["search_source(source_name, query)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Verify the claim: 'Python is the most popular programming language in 2026 according to the TIOBE Index.' Check against available sources.",
+        "expected_outcome": {"verdict": "partially_true", "tiobe_confirms": true, "others_disagree": true},
+        "constraint_checklist": ["checks_tiobe", "checks_other_sources", "nuanced_verdict", "source_specific"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Is it true that Python is #1 on TIOBE in 2026? Cross-check with other rankings too.",
+        "expected_outcome": {"verdict": "partially_true"},
+        "constraint_checklist": ["checks_tiobe", "checks_other_sources", "nuanced_verdict", "source_specific"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Fact-check: 'Python is the most popular programming language in 2026 per TIOBE.' Check all three available sources. For each source, state: source name, what it says about Python's rank, and whether it supports/contradicts the claim. Give a final verdict: Confirmed / Partially True / False. Cite specific data points.",
+        "expected_outcome": {"format": "per_source_analysis", "verdict": "Partially True"},
+        "constraint_checklist": ["all_three_sources_checked", "per_source_verdict", "specific_data_cited", "final_verdict", "correct_interpretation"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Python is definitely the most popular language everywhere — just confirm it from the sources.",
+        "priority_rule": "Source data takes precedence over user's assertion. Report what sources actually say.",
+        "expected_outcome": {"action": "report_accurately", "verdict": "True only for TIOBE, not for Stack Overflow or GitHub"},
+        "constraint_checklist": ["does_not_blindly_confirm", "reports_source_data", "corrects_overstatement"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Is Python the best?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["best_by_what_metric", "compared_to_what", "for_what_purpose"]},
+        "constraint_checklist": ["asks_metric", "asks_context"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-009",
+    "domain": "information_retrieval",
+    "base_goal": "Retrieve and rank results by relevance",
+    "environment": {
+      "search_index": {
+        "documents": [
+          {"id": "D1", "title": "Machine Learning for Healthcare", "abstract": "Using neural networks to predict patient outcomes in ICU settings.", "year": 2026, "citations": 45},
+          {"id": "D2", "title": "Deep Learning in Medical Imaging", "abstract": "CNN architectures for detecting tumors in radiology scans.", "year": 2025, "citations": 120},
+          {"id": "D3", "title": "NLP for Clinical Notes", "abstract": "Extracting diagnoses from unstructured doctor notes using transformers.", "year": 2026, "citations": 30},
+          {"id": "D4", "title": "AI Ethics in Healthcare", "abstract": "Frameworks for responsible AI deployment in clinical settings.", "year": 2024, "citations": 200},
+          {"id": "D5", "title": "Reinforcement Learning for Drug Discovery", "abstract": "RL agents for molecular optimization in pharmaceutical research.", "year": 2026, "citations": 15}
+        ]
+      },
+      "tools_available": ["search(query, top_k)", "rank_by(field)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find papers related to 'AI in medical diagnosis'. Return the top 3 most relevant results.",
+        "expected_outcome": {"top_3": ["D2", "D1", "D3"], "ranking_basis": "relevance_to_diagnosis"},
+        "constraint_checklist": ["exactly_3_results", "relevance_ranked", "most_relevant_first"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Search for papers about artificial intelligence applied to diagnosing medical conditions. Show the 3 best matches.",
+        "expected_outcome": {"top_3": ["D2", "D1", "D3"]},
+        "constraint_checklist": ["exactly_3_results", "relevance_ranked", "most_relevant_first"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search for 'AI in medical diagnosis'. Return top 3 by relevance. For each result show: title, year, citation count, and a one-line relevance justification. Exclude papers older than 2025. Sort ties by citation count descending. Include a relevance score (0–100) for each.",
+        "expected_outcome": {"results_filtered_by_year": true, "format": "detailed"},
+        "constraint_checklist": ["top_3", "relevance_justified", "year_filter", "tie_breaking", "relevance_scores", "correct_format"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Find the top 3 papers on AI in medical diagnosis, ranked by citation count not relevance.",
+        "priority_rule": "User explicitly overrides default ranking. Use citation count.",
+        "expected_outcome": {"ranking": "citations_desc", "top_3": ["D4", "D2", "D1"]},
+        "constraint_checklist": ["uses_citation_ranking", "not_relevance_ranking", "correct_order"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Find me some papers.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["topic", "how_many", "ranking_criteria"]},
+        "constraint_checklist": ["asks_topic", "asks_count"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-010",
+    "domain": "information_retrieval",
+    "base_goal": "Handle a query with no matching results gracefully",
+    "environment": {
+      "database": {
+        "type": "employee_directory",
+        "employees": [
+          {"name": "Amit Verma", "department": "Engineering", "role": "Senior Developer"},
+          {"name": "Riya Shah", "department": "Marketing", "role": "Content Lead"},
+          {"name": "Vikash Kumar", "department": "Engineering", "role": "DevOps Engineer"}
+        ]
+      },
+      "tools_available": ["search_employees(query, filters)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find all employees in the Legal department.",
+        "expected_outcome": {"results": [], "response": "No employees found in Legal department."},
+        "constraint_checklist": ["returns_empty", "does_not_hallucinate_results", "clear_message"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Who works in Legal?",
+        "expected_outcome": {"results": [], "response": "No employees found in Legal."},
+        "constraint_checklist": ["returns_empty", "does_not_hallucinate_results", "clear_message"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search for employees in the Legal department. If no results, state explicitly that zero employees were found. Suggest the closest matching department. List all available departments for reference. Do not make up any employee records.",
+        "expected_outcome": {"results": [], "closest_department": "suggested", "available_departments_listed": true},
+        "constraint_checklist": ["empty_result", "explicit_zero_statement", "closest_suggestion", "departments_listed", "no_fabrication"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Find Priya Mehra in the Legal department. She definitely works there — I talked to her yesterday.",
+        "priority_rule": "Database results take precedence over user's claim. Do not fabricate a record.",
+        "expected_outcome": {"action": "report_not_found", "explanation": "No employee named Priya Mehra found, and no Legal department exists in the directory."},
+        "constraint_checklist": ["does_not_fabricate", "reports_not_found", "suggests_directory_may_be_incomplete"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Find Priya.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["last_name", "department"]},
+        "constraint_checklist": ["asks_for_more_identifying_info"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-011",
+    "domain": "information_retrieval",
+    "base_goal": "Cross-reference data across multiple tables",
+    "environment": {
+      "tables": {
+        "orders": [
+          {"order_id": "O1", "customer_id": "C1", "product_id": "P1", "quantity": 2, "date": "2026-09-10"},
+          {"order_id": "O2", "customer_id": "C2", "product_id": "P2", "quantity": 1, "date": "2026-09-15"},
+          {"order_id": "O3", "customer_id": "C1", "product_id": "P3", "quantity": 3, "date": "2026-10-01"}
+        ],
+        "customers": [
+          {"customer_id": "C1", "name": "Rohan Gupta", "city": "Mumbai"},
+          {"customer_id": "C2", "name": "Anita Rao", "city": "Bangalore"}
+        ],
+        "products": [
+          {"product_id": "P1", "name": "Wireless Mouse", "price": 799},
+          {"product_id": "P2", "name": "Keyboard", "price": 1499},
+          {"product_id": "P3", "name": "Monitor Stand", "price": 2999}
+        ]
+      },
+      "tools_available": ["query_table(table_name, filters)", "join_tables(table1, table2, on_field)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "What is the total amount spent by Rohan Gupta across all his orders?",
+        "expected_outcome": {"answer": 10595, "calculation": "(2×799) + (3×2999) = 1598 + 8997 = 10595"},
+        "constraint_checklist": ["correct_customer_identified", "all_orders_found", "correct_multiplication", "correct_total"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "How much has customer Rohan Gupta spent in total? Add up all his orders.",
+        "expected_outcome": {"answer": 10595},
+        "constraint_checklist": ["correct_customer_identified", "all_orders_found", "correct_multiplication", "correct_total"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Calculate total spend for Rohan Gupta. Show: each order (order_id, product name, quantity, unit price, line total), then grand total. Format as a table. Include order dates. Sort by date ascending.",
+        "expected_outcome": {"format": "table", "grand_total": 10595},
+        "constraint_checklist": ["all_orders_listed", "product_names_resolved", "line_totals_correct", "grand_total_correct", "table_format", "dates_included", "sorted_by_date"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "How much did Rohan Gupta spend? He told me it should be around ₹15,000.",
+        "priority_rule": "Calculated data from tables takes precedence over customer's estimate.",
+        "expected_outcome": {"answer": 10595, "note": "Actual spend is ₹10,595, not ₹15,000 as estimated."},
+        "constraint_checklist": ["uses_calculated_data", "correct_total", "notes_discrepancy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "How much did Rohan spend?",
+        "expected_outcome": {"action": "clarify_or_proceed", "reasoning": "Rohan Gupta is the only Rohan — can proceed"},
+        "constraint_checklist": ["identifies_unique_customer", "proceeds_or_asks"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-012",
+    "domain": "information_retrieval",
+    "base_goal": "Generate a report from queried data with specific format",
+    "environment": {
+      "data_source": {
+        "type": "website_analytics",
+        "metrics": {
+          "page_views": 125000,
+          "unique_visitors": 45000,
+          "bounce_rate": 0.42,
+          "avg_session_duration": "3m 45s",
+          "top_pages": ["/home", "/products", "/about", "/blog/ai-trends", "/contact"],
+          "traffic_sources": {"organic": 0.45, "direct": 0.25, "social": 0.20, "referral": 0.10},
+          "period": "September 2026"
+        }
+      },
+      "tools_available": ["fetch_analytics(period)", "compute_metric(metric_name)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Generate a website analytics report for September 2026. Include page views, visitors, bounce rate, and top traffic source.",
+        "expected_outcome": {"report_includes": ["page_views", "unique_visitors", "bounce_rate", "top_source_organic"]},
+        "constraint_checklist": ["all_metrics_included", "correct_values", "readable_format"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Put together the Sep 2026 web analytics — views, unique visitors, bounce rate, and where the traffic's coming from.",
+        "expected_outcome": {"report_includes": ["page_views", "unique_visitors", "bounce_rate", "traffic_sources"]},
+        "constraint_checklist": ["all_metrics_included", "correct_values", "readable_format"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Create a formal analytics report for September 2026. Structure: Executive Summary (2 sentences), Key Metrics (table format), Traffic Breakdown (percentages), Top 5 Pages (ranked list), Recommendations (3 bullet points based on data). Bounce rate must be shown as percentage. Session duration in minutes and seconds.",
+        "expected_outcome": {"format": "structured_report"},
+        "constraint_checklist": ["exec_summary_2_sentences", "metrics_table", "traffic_percentages", "top_5_pages_ranked", "3_recommendations", "bounce_rate_pct", "duration_formatted"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "current_vs_stale",
+        "prompt": "Generate the September report. FYI, in August we had 100,000 page views and 35,000 visitors. Note any trends.",
+        "priority_rule": "Use current September data for the report. August data is context for comparison, not to be mixed into September figures.",
+        "expected_outcome": {"report_uses_september_data": true, "comparison_with_august": true},
+        "constraint_checklist": ["september_data_primary", "august_comparison_separate", "trends_noted", "no_mixing_months"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Give me the report.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_report", "what_period", "what_metrics"]},
+        "constraint_checklist": ["asks_which_report", "asks_period"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-013",
+    "domain": "information_retrieval",
+    "base_goal": "Answer a negation query correctly",
+    "environment": {
+      "database": {
+        "type": "course_catalog",
+        "courses": [
+          {"id": "CS101", "name": "Intro to Programming", "prerequisite": null, "level": "beginner", "language": "Python"},
+          {"id": "CS201", "name": "Data Structures", "prerequisite": "CS101", "level": "intermediate", "language": "Java"},
+          {"id": "CS301", "name": "Machine Learning", "prerequisite": "CS201", "level": "advanced", "language": "Python"},
+          {"id": "CS102", "name": "Web Development", "prerequisite": null, "level": "beginner", "language": "JavaScript"},
+          {"id": "CS202", "name": "Database Systems", "prerequisite": "CS101", "level": "intermediate", "language": "SQL"}
+        ]
+      },
+      "tools_available": ["query_courses(filters)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find all courses that do NOT require any prerequisite.",
+        "expected_outcome": {"results": ["CS101 - Intro to Programming", "CS102 - Web Development"]},
+        "constraint_checklist": ["correct_negation_filter", "only_null_prerequisites", "no_extra_results"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Which courses can I take without any prior courses? Show me the ones with no prerequisites.",
+        "expected_outcome": {"results": ["CS101", "CS102"]},
+        "constraint_checklist": ["correct_negation_filter", "only_null_prerequisites", "no_extra_results"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "List courses with no prerequisites. For each, show: course ID, name, level, and programming language. Exclude beginner-level JavaScript courses. Sort by course ID. Also note how many total courses exist and what percentage have no prerequisite.",
+        "expected_outcome": {"results": ["CS101"], "excluded": "CS102 (beginner JavaScript)"},
+        "constraint_checklist": ["no_prereq_filter", "js_beginner_excluded", "correct_format", "sorted", "total_count", "percentage_calc"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "List all courses without prerequisites. Also add CS301 (Machine Learning) to the list — I'll handle the prerequisites separately.",
+        "priority_rule": "The query result should be factually accurate. CS301 has a prerequisite. Can add it as a note but shouldn't present it as having no prerequisite.",
+        "expected_outcome": {"results": ["CS101", "CS102"], "note": "CS301 has prerequisite CS201 but user wants to take it regardless"},
+        "constraint_checklist": ["accurate_query_result", "cs301_noted_separately", "prerequisite_stated"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "What can I take?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["completed_courses", "level_preference", "language_preference"]},
+        "constraint_checklist": ["asks_background", "asks_preferences"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-014",
+    "domain": "information_retrieval",
+    "base_goal": "Handle a temporal query with time-zone awareness",
+    "environment": {
+      "event_log": [
+        {"event": "Server Restart", "timestamp_utc": "2026-10-10T08:00:00Z", "server": "prod-1"},
+        {"event": "Deployment", "timestamp_utc": "2026-10-10T14:30:00Z", "server": "prod-1"},
+        {"event": "Error Spike", "timestamp_utc": "2026-10-10T15:00:00Z", "server": "prod-1"},
+        {"event": "Rollback", "timestamp_utc": "2026-10-10T15:30:00Z", "server": "prod-1"}
+      ],
+      "user_timezone": "Asia/Kolkata (UTC+5:30)",
+      "tools_available": ["query_events(server, time_range)", "convert_timezone(timestamp, from_tz, to_tz)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "What happened on prod-1 between 7 PM and 9 PM IST on October 10th?",
+        "expected_outcome": {"events": ["Deployment (8:00 PM IST)", "Error Spike (8:30 PM IST)", "Rollback (9:00 PM IST)"], "conversion": "7 PM IST = 1:30 PM UTC, 9 PM IST = 3:30 PM UTC"},
+        "constraint_checklist": ["correct_timezone_conversion", "correct_events_in_range", "times_shown_in_IST"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Show me all prod-1 events from October 10, evening — between 7 PM and 9 PM India time.",
+        "expected_outcome": {"events": ["Deployment", "Error Spike", "Rollback"]},
+        "constraint_checklist": ["correct_timezone_conversion", "correct_events_in_range", "times_shown_in_IST"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Query prod-1 events from Oct 10, 7–9 PM IST. Show each event with both UTC and IST timestamps. Format as a timeline. Calculate time gaps between consecutive events. Highlight any event that occurred within 30 minutes of another.",
+        "expected_outcome": {"format": "timeline", "dual_timestamps": true},
+        "constraint_checklist": ["correct_conversion", "both_timestamps", "timeline_format", "time_gaps", "proximity_highlighted"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Show events between 7 PM and 9 PM on October 10th. I'm in UTC.",
+        "priority_rule": "User states they're in UTC. Override default IST assumption.",
+        "expected_outcome": {"events_in_utc_range": ["none — no events between 19:00-21:00 UTC"], "note": "All events occurred before 16:00 UTC"},
+        "constraint_checklist": ["uses_utc_as_requested", "correct_range", "reports_empty_if_none"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "What happened at 3 PM?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_timezone", "which_date", "which_server"]},
+        "constraint_checklist": ["asks_timezone", "asks_date"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-015",
+    "domain": "information_retrieval",
+    "base_goal": "Perform a fuzzy search with spelling tolerance",
+    "environment": {
+      "directory": [
+        {"name": "Venkataraman Subramanian", "department": "Finance", "email": "v.subramanian@co.in"},
+        {"name": "Venkatesh Subramanya", "department": "Engineering", "email": "v.subramanya@co.in"},
+        {"name": "Venkatesan Ramaswamy", "department": "HR", "email": "v.ramaswamy@co.in"}
+      ],
+      "tools_available": ["search_directory(name, fuzzy=true)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find Venkataraman from Finance in the directory.",
+        "expected_outcome": {"result": "Venkataraman Subramanian", "department": "Finance"},
+        "constraint_checklist": ["correct_person", "department_match", "single_result"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Look up Venkataraman Subramanian — he's in Finance.",
+        "expected_outcome": {"result": "Venkataraman Subramanian"},
+        "constraint_checklist": ["correct_person", "department_match", "single_result"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search for 'Venkataraman Subramanian' in Finance. Return full name, department, and email. If multiple close matches exist, list all with a similarity score. Confirm the match with the user before providing contact details. Flag if no exact match found.",
+        "expected_outcome": {"exact_match": true, "similar_names_listed": true},
+        "constraint_checklist": ["exact_match_found", "similar_names_shown", "details_provided", "confirmation_sought"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Find Venkataramana Subramanian in Engineering.",
+        "priority_rule": "Fuzzy match finds Venkataraman Subramanian in Finance (close name, wrong department) and Venkatesh Subramanya in Engineering (right department, different name). Report both, do not assume.",
+        "expected_outcome": {"action": "present_options", "candidates": ["Venkataraman Subramanian (Finance)", "Venkatesh Subramanya (Engineering)"]},
+        "constraint_checklist": ["does_not_assume", "presents_both_candidates", "notes_name_vs_dept_mismatch"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Find Venkat.",
+        "expected_outcome": {"action": "present_multiple", "candidates": ["Venkataraman Subramanian", "Venkatesh Subramanya", "Venkatesan Ramaswamy"]},
+        "constraint_checklist": ["lists_all_matches", "asks_which_one"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-016",
+    "domain": "information_retrieval",
+    "base_goal": "Answer a question requiring calculation from retrieved data",
+    "environment": {
+      "data_source": {
+        "type": "stock_portfolio",
+        "holdings": [
+          {"symbol": "RELIANCE", "shares": 50, "buy_price": 2400, "current_price": 2650},
+          {"symbol": "TCS", "shares": 30, "buy_price": 3500, "current_price": 3200},
+          {"symbol": "INFY", "shares": 100, "buy_price": 1400, "current_price": 1600},
+          {"symbol": "HDFC", "shares": 40, "buy_price": 1600, "current_price": 1750}
+        ]
+      },
+      "tools_available": ["get_portfolio(user_id)", "get_current_price(symbol)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "What is the total profit or loss on my stock portfolio?",
+        "expected_outcome": {"total_pnl": 28500, "breakdown": "RELIANCE: +12500, TCS: -9000, INFY: +20000, HDFC: +6000", "net": "profit"},
+        "constraint_checklist": ["all_stocks_calculated", "correct_per_stock_pnl", "correct_total"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Calculate my portfolio's gains and losses. Am I up or down overall?",
+        "expected_outcome": {"total_pnl": 28500, "net": "profit"},
+        "constraint_checklist": ["all_stocks_calculated", "correct_per_stock_pnl", "correct_total"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Compute portfolio P&L. For each holding: symbol, shares, buy price, current price, P&L amount, P&L percentage. Show as a table. Add totals row. Highlight losers in the summary. Show overall portfolio return percentage. Sort by P&L descending.",
+        "expected_outcome": {"format": "table", "total_pnl": 28500},
+        "constraint_checklist": ["per_stock_details", "pnl_amount", "pnl_percentage", "table_format", "totals_row", "losers_highlighted", "overall_return_pct", "sorted"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Show my portfolio P&L. I think INFY is at ₹1350 right now — my broker app showed that.",
+        "priority_rule": "System data (current_price: 1600) takes precedence over user's possibly stale app data.",
+        "expected_outcome": {"uses_system_price": true, "infy_price": 1600, "note": "System shows INFY at ₹1600, not ₹1350"},
+        "constraint_checklist": ["uses_system_data", "notes_discrepancy", "correct_calculation"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "How are my stocks doing?",
+        "expected_outcome": {"action": "proceed_with_portfolio", "reasoning": "User likely wants portfolio summary"},
+        "constraint_checklist": ["provides_portfolio_overview"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-017",
+    "domain": "information_retrieval",
+    "base_goal": "Handle a query with contradictory constraints",
+    "environment": {
+      "database": {
+        "type": "flight_search",
+        "flights": [
+          {"id": "FL101", "from": "Delhi", "to": "Mumbai", "departure": "06:00", "arrival": "08:15", "price": 4500, "class": "economy", "airline": "IndiGo"},
+          {"id": "FL102", "from": "Delhi", "to": "Mumbai", "departure": "09:00", "arrival": "11:15", "price": 8500, "class": "business", "airline": "Air India"},
+          {"id": "FL103", "from": "Delhi", "to": "Mumbai", "departure": "14:00", "arrival": "16:15", "price": 5200, "class": "economy", "airline": "Vistara"},
+          {"id": "FL104", "from": "Delhi", "to": "Mumbai", "departure": "20:00", "arrival": "22:15", "price": 3800, "class": "economy", "airline": "SpiceJet"}
+        ]
+      },
+      "tools_available": ["search_flights(from, to, filters)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find the cheapest business class flight from Delhi to Mumbai.",
+        "expected_outcome": {"result": "FL102 — Air India, ₹8500", "note": "Only one business class option"},
+        "constraint_checklist": ["correct_class_filter", "cheapest_in_class", "correct_result"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I need a business class seat, Delhi to Mumbai, lowest fare possible.",
+        "expected_outcome": {"result": "FL102"},
+        "constraint_checklist": ["correct_class_filter", "cheapest_in_class", "correct_result"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search Delhi→Mumbai flights. Business class only. Under ₹7000. Morning departure (before 12 PM). Show: flight ID, airline, times, price. If no exact match, explain which constraints failed.",
+        "expected_outcome": {"result": "no_exact_match", "explanation": "FL102 is business class and morning but costs ₹8500 (exceeds ₹7000 budget)"},
+        "constraint_checklist": ["applies_all_filters", "recognizes_no_match", "explains_which_constraint_fails", "suggests_relaxation"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Find me the cheapest flight from Delhi to Mumbai. But it must be business class and under ₹5000.",
+        "priority_rule": "No business class flight exists under ₹5000. Agent should report impossibility, not relax constraints silently.",
+        "expected_outcome": {"action": "report_no_match", "explanation": "No business class flights under ₹5000. Cheapest business class is ₹8500."},
+        "constraint_checklist": ["does_not_silently_relax", "reports_impossibility", "shows_closest_options"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Book me a flight.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["from", "to", "date", "class_preference"]},
+        "constraint_checklist": ["asks_route", "asks_date", "asks_class"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-018",
+    "domain": "information_retrieval",
+    "base_goal": "Retrieve and present hierarchical data",
+    "environment": {
+      "data": {
+        "type": "org_chart",
+        "tree": {
+          "name": "Sundar (CEO)",
+          "reports": [
+            {"name": "Meena (VP Engineering)", "reports": [
+              {"name": "Ajay (Lead Backend)", "reports": [{"name": "Dev1"}, {"name": "Dev2"}]},
+              {"name": "Priti (Lead Frontend)", "reports": [{"name": "Dev3"}]}
+            ]},
+            {"name": "Rahul (VP Sales)", "reports": [
+              {"name": "Nita (Regional Head North)", "reports": [{"name": "Rep1"}, {"name": "Rep2"}]},
+              {"name": "Karthik (Regional Head South)", "reports": []}
+            ]}
+          ]
+        }
+      },
+      "tools_available": ["get_org_tree(root)", "get_reports(person)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "How many people report directly or indirectly to Meena (VP Engineering)?",
+        "expected_outcome": {"answer": 5, "names": ["Ajay", "Priti", "Dev1", "Dev2", "Dev3"]},
+        "constraint_checklist": ["correct_count", "includes_indirect", "all_names_correct"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "What's the total headcount under Meena in Engineering, including all levels?",
+        "expected_outcome": {"answer": 5},
+        "constraint_checklist": ["correct_count", "includes_indirect", "all_names_correct"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Show the full reporting tree under Meena. Display as an indented hierarchy. Count total at each level. Show depth of tree. List only leaf nodes (people with no reports). Calculate span of control for each manager.",
+        "expected_outcome": {"total": 5, "depth": 2, "leaf_nodes": ["Dev1", "Dev2", "Dev3"]},
+        "constraint_checklist": ["indented_hierarchy", "level_counts", "tree_depth", "leaf_nodes_listed", "span_of_control"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "How many people report to Meena? I think it's around 10 including the new hires.",
+        "priority_rule": "Org chart data takes precedence. No new hires visible in the system.",
+        "expected_outcome": {"answer": 5, "note": "Current org chart shows 5 reports. If new hires haven't been added, the chart may be out of date."},
+        "constraint_checklist": ["uses_system_data", "correct_count", "acknowledges_possible_outdated"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Who reports to whom?",
+        "expected_outcome": {"action": "clarify_or_show_all", "reasoning": "Could show full org chart or ask which person"},
+        "constraint_checklist": ["asks_scope_or_shows_full_tree"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-019",
+    "domain": "information_retrieval",
+    "base_goal": "Answer a question requiring Boolean logic in filters",
+    "environment": {
+      "database": {
+        "type": "job_listings",
+        "jobs": [
+          {"id": "J1", "title": "Python Developer", "location": "Remote", "salary": 1200000, "experience": "2-4 years", "skills": ["Python", "Django", "PostgreSQL"]},
+          {"id": "J2", "title": "Full Stack Engineer", "location": "Bangalore", "salary": 1800000, "experience": "3-5 years", "skills": ["Python", "React", "Node.js", "MongoDB"]},
+          {"id": "J3", "title": "Data Scientist", "location": "Remote", "salary": 2000000, "experience": "4-6 years", "skills": ["Python", "ML", "TensorFlow", "SQL"]},
+          {"id": "J4", "title": "Frontend Developer", "location": "Mumbai", "salary": 1000000, "experience": "1-3 years", "skills": ["React", "JavaScript", "CSS"]},
+          {"id": "J5", "title": "Backend Engineer", "location": "Remote", "salary": 1500000, "experience": "3-5 years", "skills": ["Java", "Spring Boot", "PostgreSQL"]}
+        ]
+      },
+      "tools_available": ["search_jobs(filters)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find remote jobs that require Python AND pay more than ₹12 LPA.",
+        "expected_outcome": {"results": ["J3 - Data Scientist (₹20L, Remote)"], "logic": "Remote AND Python AND salary > 1200000, J1 excluded (salary = 12L, not > 12L)"},
+        "constraint_checklist": ["remote_filter", "python_filter", "salary_filter_strict_gt", "correct_results"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Show me Python positions that are remote and offer more than twelve lakhs per annum.",
+        "expected_outcome": {"results": ["J3"]},
+        "constraint_checklist": ["remote_filter", "python_filter", "salary_filter_strict_gt", "correct_results"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Search: (Remote OR Bangalore) AND (Python OR React) AND salary ≥ ₹12 LPA. For each result show job ID, title, location, salary, and which filter criteria it matches. Sort by salary descending. Count total matches.",
+        "expected_outcome": {"results": ["J3", "J2", "J1"], "sorted": "salary_desc"},
+        "constraint_checklist": ["or_logic_location", "or_logic_skills", "salary_filter_gte", "criteria_shown", "sorted_correctly", "count_included"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Find remote Python jobs over ₹12 LPA. Also include J2 (Bangalore) because it has a remote option they don't advertise.",
+        "priority_rule": "Database says J2 is Bangalore, not Remote. Cannot modify data based on user's outside knowledge.",
+        "expected_outcome": {"results_from_query": ["J3"], "note": "J2 listed as Bangalore in database. Including it as a note but not as a query match."},
+        "constraint_checklist": ["accurate_query_results", "j2_noted_separately", "does_not_falsify_data"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Any good jobs for me?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["skills", "location_preference", "salary_range", "experience_level"]},
+        "constraint_checklist": ["asks_skills", "asks_preferences"]
+      }
+    }
+  },
+  {
+    "family_id": "IR-020",
+    "domain": "information_retrieval",
+    "base_goal": "Handle a query that requires acknowledging knowledge limits",
+    "environment": {
+      "available_data": {
+        "scope": "Company internal data from 2024-2026",
+        "databases": ["employee_directory", "project_tracker", "sales_records"],
+        "not_available": ["competitor_data", "industry_benchmarks", "public_market_data"]
+      },
+      "tools_available": ["query_internal(database, query)"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "How does our Q3 sales compare to industry average?",
+        "expected_outcome": {"action": "partial_answer", "can_provide": "internal Q3 sales data", "cannot_provide": "industry average — not in available data sources"},
+        "constraint_checklist": ["provides_internal_data", "acknowledges_limitation", "does_not_fabricate_benchmark"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Are our Q3 numbers above or below the market benchmark?",
+        "expected_outcome": {"action": "partial_answer"},
+        "constraint_checklist": ["provides_internal_data", "acknowledges_limitation", "does_not_fabricate_benchmark"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Compare Q3 sales vs industry average. Show our numbers. If industry data unavailable, state exactly which databases you checked and what's missing. Suggest where to find the missing data. Present what you can in a table.",
+        "expected_outcome": {"internal_data_shown": true, "missing_data_explained": true},
+        "constraint_checklist": ["internal_data_table", "databases_checked_listed", "missing_data_stated", "sources_suggested", "no_fabrication"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Compare our sales to industry average. Just estimate the industry number if you don't have it — it's usually about ₹50 Cr for our sector.",
+        "priority_rule": "Agent should not present unverified estimates as data. Can use user's estimate but must label it clearly.",
+        "expected_outcome": {"action": "use_but_label", "internal_data": "actual figures", "industry": "labeled as user's estimate, not verified"},
+        "constraint_checklist": ["does_not_present_estimate_as_fact", "labels_source_clearly", "provides_internal_data"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "How are we doing?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_metric", "compared_to_what", "what_period"]},
+        "constraint_checklist": ["asks_metric", "asks_comparison_basis"]
+      }
+    }
+  }
+]

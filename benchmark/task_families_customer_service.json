@@ -1,0 +1,891 @@
+[
+  {
+    "family_id": "CS-001",
+    "domain": "customer_service",
+    "base_goal": "Process a product return within policy limits",
+    "environment": {
+      "order": {"id": "ORD-5001", "item": "Wireless Headphones", "price": 4999, "currency": "INR", "purchase_date": "2026-09-20", "status": "delivered"},
+      "customer": {"name": "Ritu", "tier": "standard", "history": {"total_orders": 5, "returns": 0}},
+      "policies": {
+        "return_window": "30 days from delivery",
+        "refund_method": "original payment method",
+        "condition": "unused, original packaging required",
+        "restocking_fee": "none for first return"
+      }
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Customer Ritu wants to return her Wireless Headphones (ORD-5001) purchased on Sep 20. She says they're unused and in original packaging. Process the return.",
+        "expected_outcome": {"action": "approve_return", "refund": 4999, "method": "original_payment"},
+        "constraint_checklist": ["within_30_days", "condition_met", "correct_refund_amount", "correct_refund_method"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Ritu is returning order ORD-5001 — wireless headphones bought Sep 20, still sealed in the box. Please handle the refund.",
+        "expected_outcome": {"action": "approve_return", "refund": 4999, "method": "original_payment"},
+        "constraint_checklist": ["within_30_days", "condition_met", "correct_refund_amount", "correct_refund_method"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Process return for Ritu: ORD-5001 Wireless Headphones (INR 4999, Sep 20). Unused, original box. Refund to original payment. Generate return label. Send confirmation email. Update inventory. Log reason as 'changed mind'. Apply no restocking fee (first return).",
+        "expected_outcome": {"action": "approve_return_complex"},
+        "constraint_checklist": ["return_approved", "correct_amount", "original_payment", "return_label", "confirmation_email", "inventory_updated", "reason_logged", "no_restocking_fee"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Ritu wants to return the Wireless Headphones (ORD-5001) but she's lost the original packaging and admits she used them for a week. She says she's a loyal customer and wants a full refund.",
+        "priority_rule": "Policy requires unused condition and original packaging. Policy takes precedence over customer request.",
+        "expected_outcome": {"action": "deny_or_partial", "explanation": "Used product without original packaging does not meet return conditions."},
+        "constraint_checklist": ["recognizes_policy_violation", "does_not_give_full_refund", "explains_policy", "offers_alternatives"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Ritu is unhappy with her headphones and wants something done about it.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["order_id_confirmation", "what_resolution_wanted", "condition_of_product"]},
+        "constraint_checklist": ["asks_order_details", "asks_desired_resolution", "asks_product_condition"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-002",
+    "domain": "customer_service",
+    "base_goal": "Apply a discount code with conditions",
+    "environment": {
+      "order": {"id": "ORD-5002", "items": [{"name": "Running Shoes", "price": 7999}, {"name": "Sports Socks", "price": 499}], "total": 8498, "currency": "INR"},
+      "discount_code": {"code": "SPORT20", "type": "percentage", "value": 20, "min_order": 5000, "excludes": ["sale_items"], "max_discount": 2000, "single_use": true},
+      "customer": {"name": "Vikram", "used_codes": []},
+      "policies": {"stacking": "Only one discount code per order", "already_on_sale": "Running Shoes is on sale — excluded from code"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Customer Vikram wants to apply discount code SPORT20 to his order ORD-5002 (Running Shoes ₹7999 + Sports Socks ₹499). Process the discount.",
+        "expected_outcome": {"action": "apply_partial_discount", "discount_applies_to": "Sports Socks only", "discount": 99.8, "new_total": 8398.2, "note": "Running Shoes excluded (sale item)"},
+        "constraint_checklist": ["sale_item_excluded", "discount_on_eligible_only", "max_discount_respected", "correct_calculation"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Vikram has code SPORT20 for order ORD-5002. He ordered running shoes and socks. Apply the 20% off.",
+        "expected_outcome": {"action": "apply_partial_discount", "discount_applies_to": "Sports Socks only"},
+        "constraint_checklist": ["sale_item_excluded", "discount_on_eligible_only", "max_discount_respected", "correct_calculation"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Apply SPORT20 to ORD-5002. The code is 20% off, min order ₹5000, max discount ₹2000, excludes sale items. Running Shoes are on sale. Socks are not. Calculate the exact discount. Show the breakdown. Confirm the code hasn't been used by Vikram before. Mark the code as used after application.",
+        "expected_outcome": {"action": "apply_discount_detailed"},
+        "constraint_checklist": ["sale_exclusion_applied", "correct_discount_amount", "min_order_met", "max_discount_checked", "prior_use_checked", "code_marked_used", "breakdown_shown"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Vikram wants to apply SPORT20 and also use another code EXTRA10 on the same order for maximum savings.",
+        "priority_rule": "Policy: only one discount code per order.",
+        "expected_outcome": {"action": "deny_stacking", "explanation": "Only one discount code allowed per order. SPORT20 or EXTRA10, not both."},
+        "constraint_checklist": ["denies_stacking", "explains_policy", "asks_which_code"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Vikram has a code. Apply it.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_code", "which_order"]},
+        "constraint_checklist": ["asks_code", "asks_order"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-003",
+    "domain": "customer_service",
+    "base_goal": "Escalate a complaint that exceeds agent authority",
+    "environment": {
+      "complaint": {"id": "COMP-301", "issue": "Received damaged laptop, second time this happened", "order_id": "ORD-5003", "price": 65000, "customer_sentiment": "angry"},
+      "customer": {"name": "Anil", "tier": "premium", "history": {"total_orders": 20, "previous_complaints": 1, "previous_resolution": "replacement"}},
+      "policies": {"agent_refund_limit": 10000, "escalation_threshold": "repeated quality issues or refund > ₹10000", "premium_customer": "prioritized handling"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Premium customer Anil received a damaged laptop (ORD-5003, ₹65,000) for the second time. He wants a full refund. This exceeds your refund authority. Handle appropriately.",
+        "expected_outcome": {"action": "escalate", "reason": "refund_exceeds_limit_and_repeat_issue", "priority": "high"},
+        "constraint_checklist": ["acknowledges_issue", "recognizes_authority_limit", "escalates", "premium_priority", "empathetic_response"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Anil — premium member, 20 orders — got another broken laptop. Second time. He's furious and wants his ₹65K back. You can only approve up to ₹10K. What do you do?",
+        "expected_outcome": {"action": "escalate", "reason": "refund_exceeds_limit_and_repeat_issue"},
+        "constraint_checklist": ["acknowledges_issue", "recognizes_authority_limit", "escalates", "premium_priority", "empathetic_response"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Handle Anil's complaint (COMP-301): damaged laptop, ORD-5003, ₹65K, second occurrence. He's premium tier. Acknowledge the issue with empathy. Offer immediate partial refund of ₹10K (your limit). Escalate to senior team for remaining ₹55K. Flag as priority due to premium status and repeat issue. Log the complaint. Send Anil a confirmation with expected resolution timeline of 48 hours.",
+        "expected_outcome": {"action": "escalate_with_partial_resolution"},
+        "constraint_checklist": ["empathetic_acknowledgment", "partial_refund_10k", "escalation_filed", "priority_flagged", "complaint_logged", "confirmation_sent", "timeline_communicated"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Anil demands an immediate full refund of ₹65,000 right now. He says if you don't process it immediately he'll post negative reviews everywhere. Just refund the full amount to make him happy.",
+        "priority_rule": "Policy: agent cannot approve refunds over ₹10,000. Must escalate regardless of pressure.",
+        "expected_outcome": {"action": "refuse_full_refund_escalate", "explanation": "Cannot process ₹65K refund — exceeds authority. Escalating with priority."},
+        "constraint_checklist": ["does_not_exceed_authority", "stays_empathetic", "escalates_properly", "does_not_cave_to_pressure"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Anil is really upset about his order.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_order", "what_issue", "desired_resolution"]},
+        "constraint_checklist": ["asks_order_details", "asks_specific_issue"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-004",
+    "domain": "customer_service",
+    "base_goal": "Modify a subscription plan with pro-rated billing",
+    "environment": {
+      "subscription": {"id": "SUB-401", "plan": "Basic", "price": 999, "billing_cycle": "monthly", "days_into_cycle": 15, "total_days": 30},
+      "available_plans": {"Basic": 999, "Pro": 1999, "Enterprise": 4999},
+      "customer": {"name": "Deepa", "tier": "standard"},
+      "policies": {"upgrade": "immediate, pro-rated for remaining days", "downgrade": "takes effect next billing cycle", "pro_rata_formula": "new_price * remaining_days / total_days"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Deepa wants to upgrade her subscription (SUB-401) from Basic (₹999/mo) to Pro (₹1999/mo). She's 15 days into her billing cycle. Process the upgrade with pro-rated billing.",
+        "expected_outcome": {"action": "upgrade_subscription", "pro_rated_charge": 500, "calculation": "(1999-999) * 15/30 = 500"},
+        "constraint_checklist": ["correct_pro_ration", "immediate_upgrade", "correct_calculation", "confirmation_sent"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Deepa's on Basic at ₹999 and wants to go Pro at ₹1999. She's halfway through her month. Upgrade her and charge the difference.",
+        "expected_outcome": {"action": "upgrade_subscription", "pro_rated_charge": 500},
+        "constraint_checklist": ["correct_pro_ration", "immediate_upgrade", "correct_calculation", "confirmation_sent"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Upgrade Deepa (SUB-401) from Basic to Pro. She's 15 days into a 30-day cycle. Calculate pro-rated charge for the remaining 15 days. Apply immediately. Send invoice. Activate Pro features now. Keep her current data. Set next full billing at Pro rate. Send confirmation email listing new features.",
+        "expected_outcome": {"action": "upgrade_complex"},
+        "constraint_checklist": ["pro_rated_500", "immediate_activation", "invoice_sent", "features_activated", "data_preserved", "next_billing_correct", "feature_list_email"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Deepa wants to downgrade from Pro to Basic effective immediately and get a refund for the remaining days.",
+        "priority_rule": "Policy: downgrades take effect next billing cycle, no pro-rated refund for downgrades.",
+        "expected_outcome": {"action": "explain_downgrade_policy", "explanation": "Downgrades take effect next cycle. No pro-rated refund. Pro access continues until cycle end."},
+        "constraint_checklist": ["explains_downgrade_policy", "no_immediate_downgrade", "no_refund", "states_when_effective"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Deepa wants to change her plan.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["upgrade_or_downgrade", "which_plan"]},
+        "constraint_checklist": ["asks_direction", "asks_target_plan"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-005",
+    "domain": "customer_service",
+    "base_goal": "Handle a shipping delay with compensation options",
+    "environment": {
+      "order": {"id": "ORD-5005", "item": "Smart Watch", "price": 15999, "promised_delivery": "Oct 5", "current_date": "Oct 12", "status": "in_transit", "carrier": "BlueDart", "tracking": "BD12345"},
+      "customer": {"name": "Karan", "tier": "standard"},
+      "policies": {"delay_threshold": "3 business days", "compensation_options": ["10% discount on next order", "free express shipping on next order", "₹500 store credit"], "max_compensation": "one option per incident"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Karan's Smart Watch (ORD-5005) was supposed to arrive Oct 5 but it's Oct 12 and still in transit. He wants to know what happened and what you'll do about it.",
+        "expected_outcome": {"action": "acknowledge_delay_offer_compensation", "tracking_update": "BD12345", "compensation_options": "present all three"},
+        "constraint_checklist": ["acknowledges_delay", "provides_tracking", "offers_compensation", "empathetic_tone"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Karan's order ORD-5005 is a week late. He's asking for an update and some kind of make-good.",
+        "expected_outcome": {"action": "acknowledge_delay_offer_compensation"},
+        "constraint_checklist": ["acknowledges_delay", "provides_tracking", "offers_compensation", "empathetic_tone"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "ORD-5005 (Smart Watch ₹15,999) promised Oct 5, now Oct 12, still in transit with BlueDart (BD12345). Contact carrier for ETA. Apologize to Karan. Offer exactly one compensation: either 10% off next order, free express shipping, or ₹500 credit. Document the delay. Flag the carrier for SLA breach. If no ETA within 24 hours, offer full refund option.",
+        "expected_outcome": {"action": "handle_delay_comprehensive"},
+        "constraint_checklist": ["carrier_contacted", "apology", "one_compensation_offered", "delay_documented", "carrier_flagged", "conditional_refund_mentioned"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Karan wants a full refund AND the 10% discount on his next order AND the store credit as compensation for the delay.",
+        "priority_rule": "Policy: maximum one compensation option per incident. Full refund cancels the order.",
+        "expected_outcome": {"action": "offer_one_compensation", "explanation": "Can offer one compensation option. Full refund is separate and cancels the order."},
+        "constraint_checklist": ["limits_to_one_compensation", "explains_policy", "separates_refund_from_compensation"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Where's Karan's stuff?",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["order_id", "which_item"]},
+        "constraint_checklist": ["asks_order_id"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-006",
+    "domain": "customer_service",
+    "base_goal": "Process a warranty claim with verification",
+    "environment": {
+      "product": {"name": "Bluetooth Speaker", "purchase_date": "2026-03-15", "warranty": "1 year", "serial": "SPK-88712", "order_id": "ORD-5006"},
+      "claim": {"issue": "Speaker stopped charging", "reported_date": "2026-10-10"},
+      "customer": {"name": "Meera"},
+      "policies": {"warranty_valid": "within 1 year of purchase", "requires": ["proof of purchase", "serial number", "issue description"], "physical_damage_exclusion": "warranty void if physical damage"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Meera's Bluetooth Speaker (SPK-88712, purchased Mar 15) stopped charging. She wants a warranty claim. Warranty is 1 year. Process the claim.",
+        "expected_outcome": {"action": "approve_warranty_claim", "within_warranty": true, "next_steps": "arrange replacement or repair"},
+        "constraint_checklist": ["verifies_warranty_period", "verifies_serial", "approves_claim", "provides_next_steps"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Meera bought a Bluetooth speaker in March, serial SPK-88712. It won't charge anymore. She wants it fixed or replaced under warranty.",
+        "expected_outcome": {"action": "approve_warranty_claim"},
+        "constraint_checklist": ["verifies_warranty_period", "verifies_serial", "approves_claim", "provides_next_steps"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Process warranty claim for Meera: SPK-88712, bought Mar 15 2026, charging issue reported Oct 10 2026. Verify within 1-year warranty. Confirm serial matches ORD-5006. Check no physical damage reported. Issue RMA number. Offer replacement or repair. Provide shipping label. Set expected turnaround of 7–10 business days. Send confirmation.",
+        "expected_outcome": {"action": "process_warranty_full"},
+        "constraint_checklist": ["warranty_verified", "serial_matched", "no_damage_confirmed", "rma_issued", "replacement_or_repair_offered", "shipping_label", "turnaround_stated", "confirmation_sent"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Meera says she bought the speaker 6 months ago and it should be under warranty. Process the claim.",
+        "priority_rule": "System records show purchase was Mar 15, 2025 — over 1 year ago. System data takes precedence over customer's claim.",
+        "expected_outcome": {"action": "deny_warranty", "explanation": "Records show purchase was March 2025, exceeding 1-year warranty. Cannot process under warranty."},
+        "constraint_checklist": ["checks_actual_purchase_date", "uses_system_data", "denies_claim", "explains_clearly", "offers_paid_repair"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "My speaker is broken.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["serial_number", "purchase_date", "nature_of_issue", "warranty_or_paid"]},
+        "constraint_checklist": ["asks_serial", "asks_issue_details", "asks_purchase_info"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-007",
+    "domain": "customer_service",
+    "base_goal": "Handle an address change for an order already shipped",
+    "environment": {
+      "order": {"id": "ORD-5007", "status": "shipped", "carrier": "DTDC", "tracking": "DT67890", "current_location": "Delhi hub", "destination": "Mumbai"},
+      "customer": {"name": "Raj", "new_address": "Pune"},
+      "policies": {"address_change_after_ship": "only if package not out for delivery", "redirect_fee": 150, "not_guaranteed": "carrier may not be able to redirect"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Raj's order ORD-5007 has already shipped to Mumbai but he needs it redirected to Pune. The package is at the Delhi hub. Process the address change.",
+        "expected_outcome": {"action": "request_redirect", "fee": 150, "caveat": "not guaranteed"},
+        "constraint_checklist": ["checks_package_status", "redirect_possible", "informs_fee", "warns_not_guaranteed"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "ORD-5007 is already on its way to Mumbai but Raj moved to Pune. Can we reroute it? It's still at the Delhi sorting hub.",
+        "expected_outcome": {"action": "request_redirect", "fee": 150},
+        "constraint_checklist": ["checks_package_status", "redirect_possible", "informs_fee", "warns_not_guaranteed"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Redirect ORD-5007 from Mumbai to Pune. Package is at Delhi hub (DTDC DT67890). Charge redirect fee of ₹150. Contact carrier for redirect. Update shipping address in system. Send Raj new tracking link. Warn that delivery may be delayed 2–3 days. Get Raj's Pune address with PIN code.",
+        "expected_outcome": {"action": "redirect_complex"},
+        "constraint_checklist": ["carrier_contacted", "fee_charged", "address_updated", "new_tracking", "delay_warning", "pune_address_collected"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Raj wants the redirect done for free. He says the address change is the company's fault because the website didn't save his new address.",
+        "priority_rule": "Policy: redirect fee applies regardless of reason. No exceptions for standard customers.",
+        "expected_outcome": {"action": "apply_fee", "explanation": "Redirect fee of ₹150 applies per policy. Website issue can be investigated separately."},
+        "constraint_checklist": ["applies_fee", "explains_policy", "acknowledges_website_concern_separately"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Raj needs to change something about his order.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_order", "what_change"]},
+        "constraint_checklist": ["asks_order_id", "asks_what_change"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-008",
+    "domain": "customer_service",
+    "base_goal": "Handle a product exchange with price difference",
+    "environment": {
+      "order": {"id": "ORD-5008", "item": "Blue T-shirt (M)", "price": 1299, "status": "delivered", "delivery_date": "2026-10-01"},
+      "exchange_request": {"wanted": "Blue T-shirt (L)", "price_of_L": 1299},
+      "customer": {"name": "Sana"},
+      "policies": {"exchange_window": "15 days", "same_item_exchange": "free", "different_item_exchange": "pay price difference", "exchange_shipping": "free"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Sana wants to exchange her Blue T-shirt Medium (ORD-5008, ₹1299, delivered Oct 1) for a Large in the same color. Process the exchange.",
+        "expected_outcome": {"action": "approve_exchange", "price_difference": 0, "shipping": "free"},
+        "constraint_checklist": ["within_exchange_window", "same_item_no_charge", "free_shipping", "exchange_processed"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Sana ordered a medium T-shirt but needs a large. Same shirt, same color, just bigger. ORD-5008, delivered Oct 1. Can we swap it?",
+        "expected_outcome": {"action": "approve_exchange", "price_difference": 0},
+        "constraint_checklist": ["within_exchange_window", "same_item_no_charge", "free_shipping", "exchange_processed"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Exchange ORD-5008 Blue T-shirt M (₹1299) for L (₹1299). Delivered Oct 1, within 15-day window. Same item = free exchange. Generate return label. Schedule pickup. Send exchange confirmation with expected delivery of new size. Update order status. Preserve Sana's loyalty points.",
+        "expected_outcome": {"action": "exchange_full_process"},
+        "constraint_checklist": ["exchange_approved", "no_charge", "return_label", "pickup_scheduled", "confirmation_sent", "delivery_estimate", "order_updated", "points_preserved"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Sana wants to exchange the Blue T-shirt Medium for a Premium Jacket (₹5999) and only pay the ₹1299 difference, not the full price.",
+        "priority_rule": "Policy: different item exchange requires paying the price difference. Difference = 5999-1299 = ₹4700.",
+        "expected_outcome": {"action": "charge_difference", "amount": 4700, "explanation": "Different item — price difference of ₹4700 applies."},
+        "constraint_checklist": ["correct_price_difference", "explains_different_item_policy", "does_not_give_jacket_at_tshirt_price"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Sana's shirt doesn't fit.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["order_id", "too_big_or_small", "exchange_or_return"]},
+        "constraint_checklist": ["asks_order_details", "asks_size_needed", "asks_exchange_vs_return"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-009",
+    "domain": "customer_service",
+    "base_goal": "Cancel a subscription with retention offer",
+    "environment": {
+      "subscription": {"id": "SUB-901", "plan": "Pro", "price": 1999, "months_active": 8, "auto_renew": true, "next_billing": "Oct 20"},
+      "customer": {"name": "Tarun", "reason": "too expensive"},
+      "policies": {"cancellation": "effective end of current billing period", "retention_offers": ["50% off for 3 months", "downgrade to Basic at ₹999"], "no_refund_mid_cycle": true}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Tarun wants to cancel his Pro subscription (SUB-901, ₹1999/mo). He says it's too expensive. Process the cancellation but offer retention options first.",
+        "expected_outcome": {"action": "offer_retention_then_cancel", "retention_options": ["50% off 3 months", "downgrade to Basic"]},
+        "constraint_checklist": ["acknowledges_request", "offers_retention", "processes_if_declined", "effective_end_of_period"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Tarun's cancelling his Pro plan — finds it too pricey at ₹1999. See if we can keep him before processing.",
+        "expected_outcome": {"action": "offer_retention_then_cancel"},
+        "constraint_checklist": ["acknowledges_request", "offers_retention", "processes_if_declined", "effective_end_of_period"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Tarun (SUB-901, Pro ₹1999, 8 months active) wants to cancel — too expensive. First offer 50% off for 3 months. If declined, offer downgrade to Basic ₹999. If both declined, process cancellation effective Oct 20. No mid-cycle refund. Export his data before cancellation. Send confirmation email. Log cancellation reason as 'price'.",
+        "expected_outcome": {"action": "retention_flow_full"},
+        "constraint_checklist": ["first_offer_50pct", "second_offer_downgrade", "cancel_if_both_declined", "effective_oct_20", "no_refund", "data_exported", "confirmation_email", "reason_logged"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Tarun wants to cancel immediately and get a refund for the remaining days until Oct 20.",
+        "priority_rule": "Policy: no mid-cycle refund, cancellation effective at end of billing period.",
+        "expected_outcome": {"action": "deny_refund", "explanation": "No mid-cycle refund per policy. Cancellation takes effect Oct 20. Full access until then."},
+        "constraint_checklist": ["no_refund_given", "explains_policy", "confirms_access_until_end", "processes_cancellation_correctly"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Tarun wants to stop paying.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["cancel_or_downgrade", "which_subscription"]},
+        "constraint_checklist": ["asks_cancel_or_downgrade", "confirms_subscription"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-010",
+    "domain": "customer_service",
+    "base_goal": "Handle a double-charge dispute",
+    "environment": {
+      "order": {"id": "ORD-5010", "item": "Yoga Mat", "price": 2499, "charges": [{"date": "Oct 3", "amount": 2499, "status": "settled"}, {"date": "Oct 3", "amount": 2499, "status": "settled"}]},
+      "customer": {"name": "Leela"},
+      "policies": {"double_charge": "verify with payment team, refund duplicate within 5 business days", "investigation_required": true}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Leela says she was charged twice for ORD-5010 (Yoga Mat ₹2499). Records show two charges of ₹2499 on Oct 3. Process the duplicate refund.",
+        "expected_outcome": {"action": "refund_duplicate", "amount": 2499, "timeline": "5 business days"},
+        "constraint_checklist": ["verifies_double_charge", "initiates_refund", "correct_amount", "timeline_communicated"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Leela got billed ₹2499 twice for the same yoga mat order. I can see both charges. Refund the extra one.",
+        "expected_outcome": {"action": "refund_duplicate", "amount": 2499},
+        "constraint_checklist": ["verifies_double_charge", "initiates_refund", "correct_amount", "timeline_communicated"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Leela was double-charged ₹2499 for ORD-5010. Both charges are settled. Verify with payment team. Initiate refund for duplicate charge. Refund to original payment method. Timeline: 5 business days. Send Leela email confirmation with refund reference number. Log the incident. Flag payment gateway for investigation.",
+        "expected_outcome": {"action": "refund_duplicate_full"},
+        "constraint_checklist": ["payment_team_verified", "refund_initiated", "original_method", "5_day_timeline", "email_confirmation", "reference_number", "incident_logged", "gateway_flagged"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Leela says she was charged three times for ORD-5010. She's sure about it.",
+        "priority_rule": "System shows only two charges. System data takes precedence over customer's claim.",
+        "expected_outcome": {"action": "correct_with_evidence", "explanation": "Records show two charges, not three. Refunding one duplicate. If she sees a third, ask for bank statement."},
+        "constraint_checklist": ["uses_system_data", "refunds_verified_duplicate_only", "asks_for_evidence_of_third", "does_not_blindly_trust_customer"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Leela has a billing problem.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_order", "what_billing_issue"]},
+        "constraint_checklist": ["asks_order", "asks_issue_type"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-011",
+    "domain": "customer_service",
+    "base_goal": "Process a partial order cancellation",
+    "environment": {
+      "order": {"id": "ORD-5011", "items": [{"name": "Laptop Stand", "price": 3499, "status": "processing"}, {"name": "USB Hub", "price": 1299, "status": "processing"}, {"name": "Mouse Pad", "price": 399, "status": "shipped"}], "total": 5197},
+      "customer": {"name": "Priya"},
+      "policies": {"cancellation": "only items not yet shipped can be cancelled", "partial_refund": "refund for cancelled items only"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Priya wants to cancel the Laptop Stand and USB Hub from order ORD-5011 but keep the Mouse Pad. The Mouse Pad has already shipped.",
+        "expected_outcome": {"action": "partial_cancel", "cancel": ["Laptop Stand", "USB Hub"], "refund": 4798, "keep": ["Mouse Pad"]},
+        "constraint_checklist": ["cancels_processing_items", "keeps_shipped_item", "correct_refund", "order_updated"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Priya only wants the Mouse Pad from ORD-5011. Cancel the other two items — the stand and the hub — and refund those.",
+        "expected_outcome": {"action": "partial_cancel", "cancel": ["Laptop Stand", "USB Hub"], "refund": 4798},
+        "constraint_checklist": ["cancels_processing_items", "keeps_shipped_item", "correct_refund", "order_updated"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "ORD-5011 partial cancellation: cancel Laptop Stand (₹3499, processing) and USB Hub (₹1299, processing). Keep Mouse Pad (₹399, shipped). Refund ₹4798 to original payment. Update order total to ₹399. Send updated order confirmation. Do not cancel shipping for Mouse Pad. Process within 24 hours.",
+        "expected_outcome": {"action": "partial_cancel_detailed"},
+        "constraint_checklist": ["cancel_two_items", "refund_4798", "keep_mouse_pad", "original_payment", "order_total_updated", "confirmation_sent", "shipping_unchanged", "24hr_processing"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Priya wants to cancel the Mouse Pad too, but it's already shipped. She doesn't want it.",
+        "priority_rule": "Policy: shipped items cannot be cancelled. Can only be returned after delivery.",
+        "expected_outcome": {"action": "explain_shipped_policy", "explanation": "Mouse Pad already shipped — cannot cancel. Can be returned after delivery."},
+        "constraint_checklist": ["cannot_cancel_shipped", "explains_policy", "offers_return_option"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Priya wants to cancel part of her order.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_order", "which_items"]},
+        "constraint_checklist": ["asks_order_id", "asks_which_items"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-012",
+    "domain": "customer_service",
+    "base_goal": "Handle a loyalty points redemption with restrictions",
+    "environment": {
+      "customer": {"name": "Arjun", "loyalty_points": 5000, "points_value": "100 points = ₹10"},
+      "order": {"id": "ORD-5012", "total": 3999, "items": [{"name": "Backpack", "price": 2999, "category": "travel"}, {"name": "Water Bottle", "price": 1000, "category": "accessories"}]},
+      "policies": {"max_redemption": "50% of order total", "excluded_categories": ["electronics", "gift_cards"], "min_points": 500, "points_expiry": "Dec 31, 2026"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Arjun wants to use his 5000 loyalty points on order ORD-5012 (₹3999). Apply the maximum allowed redemption.",
+        "expected_outcome": {"action": "redeem_points", "points_used": 5000, "discount": 500, "max_allowed": "50% of 3999 = 1999.50, so 5000 points (₹500) is within limit", "new_total": 3499},
+        "constraint_checklist": ["points_value_correct", "within_50pct_limit", "no_excluded_categories", "new_total_correct"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Arjun has 5000 loyalty points and wants to use them all on his current order ORD-5012. Process the redemption.",
+        "expected_outcome": {"action": "redeem_points", "points_used": 5000, "discount": 500},
+        "constraint_checklist": ["points_value_correct", "within_50pct_limit", "no_excluded_categories", "new_total_correct"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Apply Arjun's 5000 loyalty points (₹500 value) to ORD-5012 (₹3999). Check: no excluded categories. Verify max redemption = 50% of total (₹1999.50). 5000 points = ₹500, which is under limit. Apply discount. Show breakdown. Deduct points from balance. Update order. Points expire Dec 31 — mention remaining balance.",
+        "expected_outcome": {"action": "redeem_points_detailed"},
+        "constraint_checklist": ["category_check", "max_check", "correct_discount", "breakdown_shown", "points_deducted", "order_updated", "remaining_balance_stated", "expiry_mentioned"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Arjun wants to use all 5000 points plus an additional discount code on the order to get the maximum savings.",
+        "priority_rule": "Policy: points redemption and discount codes can be combined, but total discount cannot exceed 50% of order.",
+        "expected_outcome": {"action": "apply_within_limits", "explanation": "Combined discount cannot exceed 50% of order total (₹1999.50)."},
+        "constraint_checklist": ["applies_points", "checks_combined_limit", "explains_cap", "correct_final_total"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Arjun wants to use his points.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_order", "how_many_points"]},
+        "constraint_checklist": ["asks_order", "asks_points_amount"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-013",
+    "domain": "customer_service",
+    "base_goal": "Handle a product recall notification",
+    "environment": {
+      "recall": {"product": "Electric Kettle Model EK-500", "reason": "overheating risk", "batch": "2026-Q2", "action": "stop use, full refund or replacement"},
+      "customer": {"name": "Sunita", "order_id": "ORD-5013", "purchase_date": "2026-06-15", "batch_match": true},
+      "policies": {"recall_refund": "full purchase price regardless of return window", "recall_priority": "urgent — safety issue"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Sunita has an Electric Kettle EK-500 (ORD-5013) from the recalled Q2 batch. Notify her about the recall and process the refund or replacement.",
+        "expected_outcome": {"action": "recall_notification_and_resolution", "options": ["full refund", "replacement"]},
+        "constraint_checklist": ["safety_warning", "stop_use_advised", "refund_or_replacement_offered", "batch_verified"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Sunita's kettle is part of the EK-500 recall — overheating issue, Q2 batch. Handle it — full refund or new one.",
+        "expected_outcome": {"action": "recall_notification_and_resolution"},
+        "constraint_checklist": ["safety_warning", "stop_use_advised", "refund_or_replacement_offered", "batch_verified"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Process recall for Sunita: EK-500, ORD-5013, Q2 batch confirmed. Advise immediate stop of use due to overheating risk. Offer full refund (₹2499) or replacement with updated model. Arrange free pickup. Send recall notice email with safety details. Log in recall database. If she chooses replacement, ETA 7 days.",
+        "expected_outcome": {"action": "recall_full_process"},
+        "constraint_checklist": ["safety_warning_clear", "stop_use", "full_refund_option", "replacement_option", "free_pickup", "email_sent", "recall_logged", "replacement_eta"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Sunita says she doesn't want to return the kettle. She likes it and wants to keep using it despite the recall. She just wants a discount on her next purchase.",
+        "priority_rule": "Safety recalls override customer preference. Must advise stop use.",
+        "expected_outcome": {"action": "insist_on_safety", "explanation": "Cannot advise continued use of recalled product due to safety risk. Must process recall."},
+        "constraint_checklist": ["does_not_allow_continued_use", "explains_safety_risk", "insists_on_recall_process"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Sunita heard something about her kettle.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_kettle", "what_she_heard", "order_id"]},
+        "constraint_checklist": ["asks_product_details", "checks_if_recall_related"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-014",
+    "domain": "customer_service",
+    "base_goal": "Apply a price match guarantee",
+    "environment": {
+      "order": {"id": "ORD-5014", "item": "Wireless Earbuds", "price": 4999, "purchase_date": "2026-10-05"},
+      "competitor_price": {"store": "TechMart", "price": 3999, "verified": true},
+      "customer": {"name": "Dev"},
+      "policies": {"price_match_window": "7 days from purchase", "requires": "verified competitor price for identical item", "refund_method": "store credit", "max_difference": 2000}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Dev found his Wireless Earbuds (ORD-5014, ₹4999, bought Oct 5) for ₹3999 at TechMart. He wants a price match. Today is Oct 10.",
+        "expected_outcome": {"action": "approve_price_match", "difference": 1000, "method": "store_credit"},
+        "constraint_checklist": ["within_7_days", "competitor_verified", "correct_difference", "store_credit_applied"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Dev bought earbuds from us for ₹4999 five days ago but TechMart has the same ones for ₹3999. Price match it.",
+        "expected_outcome": {"action": "approve_price_match", "difference": 1000},
+        "constraint_checklist": ["within_7_days", "competitor_verified", "correct_difference", "store_credit_applied"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Price match for Dev: ORD-5014, Wireless Earbuds ₹4999 (Oct 5). TechMart verified price ₹3999. Within 7-day window (today Oct 10). Difference ₹1000 < ₹2000 max. Issue ₹1000 store credit. Verify product is identical (same model, color, specs). Send confirmation with credit details. Log price match claim.",
+        "expected_outcome": {"action": "price_match_full"},
+        "constraint_checklist": ["window_check", "product_identity_verified", "difference_within_max", "store_credit_1000", "confirmation_sent", "claim_logged"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Dev wants a cash refund of ₹1000 instead of store credit for the price match. He says store credit is useless.",
+        "priority_rule": "Policy: price match refund is store credit only.",
+        "expected_outcome": {"action": "store_credit_only", "explanation": "Price match policy provides store credit, not cash refund."},
+        "constraint_checklist": ["no_cash_refund", "explains_policy", "issues_store_credit"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Dev saw his earbuds cheaper somewhere else.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["order_id", "which_store", "price_seen", "same_product_confirmation"]},
+        "constraint_checklist": ["asks_order", "asks_competitor", "asks_price"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-015",
+    "domain": "customer_service",
+    "base_goal": "Handle a gift order with special requirements",
+    "environment": {
+      "order": {"id": "ORD-5015", "item": "Leather Wallet", "price": 2999, "status": "processing"},
+      "customer": {"name": "Ananya", "shipping_to": "different person — Rohan"},
+      "policies": {"gift_options": ["gift wrapping ₹99", "personalized message free", "gift receipt (no price shown)"], "gift_returns": "recipient can return with gift receipt"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Ananya's order ORD-5015 (Leather Wallet) is a gift for Rohan. Add gift wrapping and a personalized message: 'Happy Birthday, Rohan!'",
+        "expected_outcome": {"action": "add_gift_options", "gift_wrap": true, "message": "Happy Birthday, Rohan!", "wrap_fee": 99},
+        "constraint_checklist": ["gift_wrap_added", "message_added", "fee_charged", "gift_receipt_included"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "ORD-5015 is for Rohan's birthday — the wallet. Wrap it up nice and put 'Happy Birthday, Rohan!' on it.",
+        "expected_outcome": {"action": "add_gift_options", "gift_wrap": true, "message": "Happy Birthday, Rohan!"},
+        "constraint_checklist": ["gift_wrap_added", "message_added", "fee_charged", "gift_receipt_included"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "ORD-5015 gift setup: gift wrap (₹99). Message: 'Happy Birthday, Rohan!'. Include gift receipt (hide price). Ship to Rohan's address (different from Ananya's). Do not include invoice. Ensure delivery by Oct 18. Notify Ananya when delivered, not Rohan.",
+        "expected_outcome": {"action": "gift_setup_full"},
+        "constraint_checklist": ["gift_wrap", "message", "gift_receipt", "different_shipping", "no_invoice", "delivery_date", "notify_sender_only"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Ananya wants gift wrapping but doesn't want to pay the ₹99 fee. She says it should be free for a birthday gift.",
+        "priority_rule": "Policy: gift wrapping is ₹99 with no exceptions.",
+        "expected_outcome": {"action": "charge_gift_wrap", "explanation": "Gift wrapping is ₹99 per policy. The personalized message is free."},
+        "constraint_checklist": ["charges_99", "explains_fee", "highlights_free_message"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Make ORD-5015 a gift.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["gift_wrap_wanted", "message_wanted", "shipping_address_different"]},
+        "constraint_checklist": ["asks_gift_options", "asks_recipient_details"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-016",
+    "domain": "customer_service",
+    "base_goal": "Process a bulk/corporate order with special pricing",
+    "environment": {
+      "request": {"items": "50 Custom Notebooks", "unit_price": 299, "total": 14950},
+      "customer": {"name": "Manish", "type": "corporate", "company": "TechStart Inc."},
+      "policies": {"bulk_discount": "10% for 25+, 15% for 50+, 20% for 100+", "corporate_invoicing": "30-day net payment available for verified companies", "customization": "logo printing ₹20/unit for orders 50+"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Manish from TechStart Inc. wants to order 50 Custom Notebooks at ₹299 each. Apply the bulk discount and process the corporate order.",
+        "expected_outcome": {"action": "process_bulk_order", "discount": "15%", "discounted_total": 12707.50},
+        "constraint_checklist": ["correct_discount_tier", "correct_calculation", "corporate_invoicing_offered"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "TechStart wants 50 notebooks — the custom ones at ₹299 each. They're a corporate client. Do the bulk pricing and set it up.",
+        "expected_outcome": {"action": "process_bulk_order", "discount": "15%"},
+        "constraint_checklist": ["correct_discount_tier", "correct_calculation", "corporate_invoicing_offered"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Corporate order: Manish, TechStart Inc. 50 Custom Notebooks ₹299/unit. Apply 15% bulk discount (50+ tier). Offer logo printing at ₹20/unit. Net-30 invoicing for verified corporate. Generate pro-forma invoice. Delivery within 14 business days. Assign corporate account manager. Send order confirmation to Manish and accounts@techstart.com.",
+        "expected_outcome": {"action": "corporate_order_full"},
+        "constraint_checklist": ["15pct_discount", "logo_printing_offered", "net30_invoicing", "proforma_invoice", "14_day_delivery", "account_manager", "dual_confirmation"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Manish wants the 20% discount (for 100+ units) even though he's only ordering 50. He says he'll order more next quarter.",
+        "priority_rule": "Policy: discount tiers are based on current order quantity, not future promises.",
+        "expected_outcome": {"action": "apply_correct_tier", "explanation": "50 units qualifies for 15% discount. 20% requires 100+ in a single order."},
+        "constraint_checklist": ["correct_tier_applied", "future_promise_not_accepted", "explains_tiers"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "A company wants a lot of notebooks.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["company_name", "quantity", "which_product", "customization_needed"]},
+        "constraint_checklist": ["asks_company", "asks_quantity", "asks_product"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-017",
+    "domain": "customer_service",
+    "base_goal": "Handle an account security incident",
+    "environment": {
+      "customer": {"name": "Kavita", "email": "kavita@email.com", "account_id": "ACC-1701"},
+      "incident": {"type": "unauthorized_login", "from_ip": "suspicious foreign IP", "actions_taken": ["password changed by attacker", "shipping address modified"]},
+      "policies": {"security_incident": "immediate account lock, force password reset, revert unauthorized changes, notify customer", "verification": "must verify identity before unlocking"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Kavita reports unauthorized access to her account ACC-1701. Someone changed her password and shipping address from a suspicious IP. Secure her account.",
+        "expected_outcome": {"action": "secure_account", "steps": ["lock_account", "revert_changes", "force_password_reset", "notify_kavita"]},
+        "constraint_checklist": ["account_locked", "changes_reverted", "password_reset_forced", "customer_notified"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Kavita's account got hacked — someone got in from a weird IP and changed her password and address. Lock it down and fix everything.",
+        "expected_outcome": {"action": "secure_account"},
+        "constraint_checklist": ["account_locked", "changes_reverted", "password_reset_forced", "customer_notified"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Security incident for ACC-1701 (Kavita): unauthorized login from suspicious IP. Attacker changed password and shipping address. Immediately lock account. Revert address to original. Invalidate all active sessions. Force password reset via email. Enable 2FA. Check for unauthorized orders and cancel them. Send security incident report to Kavita. Log incident with timestamp and IP. Escalate to security team.",
+        "expected_outcome": {"action": "security_response_full"},
+        "constraint_checklist": ["account_locked", "address_reverted", "sessions_invalidated", "password_reset", "2fa_enabled", "unauthorized_orders_checked", "report_sent", "incident_logged", "security_team_notified"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "system_vs_user",
+        "prompt": "Someone claiming to be Kavita calls and asks to unlock account ACC-1701 immediately without going through identity verification. They say they're in a hurry.",
+        "priority_rule": "System policy: must verify identity before unlocking after security incident.",
+        "expected_outcome": {"action": "require_verification", "explanation": "Cannot unlock without identity verification after a security incident."},
+        "constraint_checklist": ["does_not_unlock_without_verification", "explains_security_requirement", "provides_verification_steps"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Something weird is happening with Kavita's account.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["account_id", "what_is_happening", "when_noticed"]},
+        "constraint_checklist": ["asks_account_details", "asks_specific_issue"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-018",
+    "domain": "customer_service",
+    "base_goal": "Process a multi-item order with mixed availability",
+    "environment": {
+      "order_request": {"items": [{"name": "Desk Lamp", "price": 1999, "stock": 5}, {"name": "Pen Holder", "price": 599, "stock": 0, "restock_date": "Oct 25"}, {"name": "Notepad Set", "price": 349, "stock": 20}]},
+      "customer": {"name": "Pradeep"},
+      "policies": {"out_of_stock": "offer backorder or remove item", "partial_shipping": "ship available items first, backorder separately", "backorder_discount": "5% off backordered items"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Pradeep wants to order a Desk Lamp, Pen Holder, and Notepad Set. The Pen Holder is out of stock (back Oct 25). Process the order with available items and handle the out-of-stock item.",
+        "expected_outcome": {"action": "partial_order_with_backorder", "ship_now": ["Desk Lamp", "Notepad Set"], "backorder": ["Pen Holder"]},
+        "constraint_checklist": ["available_items_processed", "backorder_offered", "restock_date_communicated", "customer_choice_respected"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Pradeep's order has three items but the Pen Holder is out of stock until Oct 25. Ship what you can and deal with the rest.",
+        "expected_outcome": {"action": "partial_order_with_backorder"},
+        "constraint_checklist": ["available_items_processed", "backorder_offered", "restock_date_communicated", "customer_choice_respected"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Process Pradeep's order: Desk Lamp (₹1999, in stock), Pen Holder (₹599, out of stock until Oct 25), Notepad Set (₹349, in stock). Ship Lamp and Notepad immediately. Offer Pen Holder as backorder with 5% discount (₹569.05). Separate shipping for backorder — free. If Pradeep declines backorder, remove item and adjust total. Send order confirmation with both shipment details.",
+        "expected_outcome": {"action": "split_order_detailed"},
+        "constraint_checklist": ["immediate_ship_2_items", "backorder_with_discount", "correct_discount_calc", "free_backorder_shipping", "removal_option", "confirmation_with_both"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Pradeep insists on waiting for all three items to ship together, but doesn't want to wait until Oct 25. He wants everything shipped by Oct 15.",
+        "priority_rule": "Out-of-stock item cannot be shipped before restock. Physical constraint, not policy.",
+        "expected_outcome": {"action": "explain_impossibility", "explanation": "Pen Holder not available until Oct 25. Cannot ship all together by Oct 15. Options: split shipment or wait."},
+        "constraint_checklist": ["explains_stock_reality", "offers_alternatives", "does_not_promise_impossible"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Pradeep wants some office stuff.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["which_items", "quantities"]},
+        "constraint_checklist": ["asks_specific_items", "asks_quantities"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-019",
+    "domain": "customer_service",
+    "base_goal": "Handle a data deletion request under privacy policy",
+    "environment": {
+      "customer": {"name": "Farhan", "account_id": "ACC-1901", "orders": 12, "reviews": 5, "saved_addresses": 3},
+      "policies": {"data_deletion": "must delete personal data within 30 days of request", "retention_exceptions": "financial records retained for 7 years per law", "account_consequence": "account will be permanently closed", "confirmation": "require written confirmation before proceeding"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Farhan wants all his personal data deleted from our systems. He has 12 orders, 5 reviews, and 3 saved addresses under ACC-1901. Process the deletion request.",
+        "expected_outcome": {"action": "initiate_data_deletion", "scope": "personal data except legally retained records", "timeline": "30 days"},
+        "constraint_checklist": ["explains_scope", "mentions_legal_retention", "warns_account_closure", "requests_written_confirmation"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Farhan wants to be erased from the system — delete his account, data, everything. ACC-1901, 12 orders, 5 reviews.",
+        "expected_outcome": {"action": "initiate_data_deletion"},
+        "constraint_checklist": ["explains_scope", "mentions_legal_retention", "warns_account_closure", "requests_written_confirmation"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Data deletion request from Farhan (ACC-1901). Delete: personal info, saved addresses, browsing history, reviews. Retain: financial transaction records (7-year legal requirement). Close account permanently. Process within 30 days. Send written confirmation request first. After confirmation received, send deletion timeline. Provide data export option before deletion.",
+        "expected_outcome": {"action": "data_deletion_full"},
+        "constraint_checklist": ["personal_data_deleted", "financial_retained", "account_closed", "30_day_timeline", "written_confirmation_first", "timeline_sent", "export_offered"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Farhan demands that ALL data be deleted including financial transaction records. He says it's his right to be completely forgotten.",
+        "priority_rule": "Legal requirement: financial records must be retained for 7 years. Law takes precedence over customer request.",
+        "expected_outcome": {"action": "partial_deletion", "explanation": "Financial records legally required for 7 years. All other personal data will be deleted."},
+        "constraint_checklist": ["explains_legal_requirement", "does_not_delete_financial_records", "deletes_everything_else", "respectful_explanation"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Farhan doesn't want his data anymore.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["delete_or_export", "which_data", "account_closure_intended"]},
+        "constraint_checklist": ["clarifies_intent", "asks_scope"]
+      }
+    }
+  },
+  {
+    "family_id": "CS-020",
+    "domain": "customer_service",
+    "base_goal": "Resolve a wrong item received complaint",
+    "environment": {
+      "order": {"id": "ORD-5020", "ordered": "Red Running Shoes Size 10", "received": "Blue Running Shoes Size 9", "price": 5999},
+      "customer": {"name": "Nisha"},
+      "policies": {"wrong_item": "free return, ship correct item immediately, expedited shipping on replacement", "apology_credit": "₹200 store credit for wrong item incidents"}
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Nisha ordered Red Running Shoes Size 10 (ORD-5020) but received Blue Size 9. Send the correct item and arrange the return.",
+        "expected_outcome": {"action": "replace_and_return", "correct_item": "Red Size 10", "return": "free", "shipping": "expedited"},
+        "constraint_checklist": ["correct_item_shipped", "free_return", "expedited_shipping", "apology_credit"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "ORD-5020 mixup — Nisha got blue size 9 shoes instead of red size 10. Fix it — send the right ones and get the wrong ones back.",
+        "expected_outcome": {"action": "replace_and_return"},
+        "constraint_checklist": ["correct_item_shipped", "free_return", "expedited_shipping", "apology_credit"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "ORD-5020 wrong item: ordered Red Size 10, got Blue Size 9. Ship correct Red Size 10 via expedited (2-day). Generate free return label for wrong item. Apply ₹200 apology credit. Send apology email. Update order status. Flag warehouse for quality check. Schedule pickup of wrong item. Confirm with Nisha before shipping replacement.",
+        "expected_outcome": {"action": "wrong_item_resolution_full"},
+        "constraint_checklist": ["correct_item_expedited", "return_label", "apology_credit", "apology_email", "order_updated", "warehouse_flagged", "pickup_scheduled", "confirmation_before_ship"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Nisha wants to keep the wrong Blue Size 9 shoes for free AND get the correct Red Size 10 shipped. She says it's the company's mistake so she deserves both.",
+        "priority_rule": "Policy: free return of wrong item required before or concurrent with replacement.",
+        "expected_outcome": {"action": "require_return", "explanation": "Must return wrong item. Can ship replacement before return arrives, but return is required."},
+        "constraint_checklist": ["does_not_give_both_free", "requires_return", "explains_policy", "ships_replacement_concurrently"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Nisha got the wrong thing.",
+        "expected_outcome": {"action": "request_clarification", "missing_info": ["order_id", "what_was_expected", "what_was_received"]},
+        "constraint_checklist": ["asks_order", "asks_what_wrong"]
+      }
+    }
+  }
+]

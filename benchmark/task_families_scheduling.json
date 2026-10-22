@@ -1,0 +1,1284 @@
+[
+  {
+    "family_id": "SCHED-001",
+    "domain": "scheduling",
+    "base_goal": "Schedule a 30-minute project meeting on Wednesday afternoon with two attendees",
+    "environment": {
+      "calendar": [
+        {"event": "Team Standup", "day": "Wednesday", "time": "09:00-09:30", "attendees": ["Rahul", "Priya", "Amit"]},
+        {"event": "Lunch Break", "day": "Wednesday", "time": "12:00-13:00", "attendees": ["self"]}
+      ],
+      "attendee_availability": {
+        "Rahul": {"Wednesday": ["14:00-17:00"]},
+        "Priya": {"Wednesday": ["13:00-16:00"]}
+      },
+      "rooms": ["Room A", "Room B"],
+      "policies": ["No meetings after 16:30", "Room B requires 24-hour advance booking"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Schedule a 30-minute project meeting with Rahul and Priya on Wednesday afternoon.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Wednesday", "time_range": "14:00-16:00", "attendees": ["Rahul", "Priya"]}
+        },
+        "constraint_checklist": ["duration_30min", "day_wednesday", "time_afternoon", "attendee_rahul", "attendee_priya"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I need to set up a half-hour Wednesday PM session for the project — please add Rahul and Priya.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Wednesday", "time_range": "14:00-16:00", "attendees": ["Rahul", "Priya"]}
+        },
+        "constraint_checklist": ["duration_30min", "day_wednesday", "time_afternoon", "attendee_rahul", "attendee_priya"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Schedule a 30-minute project meeting with Rahul and Priya on Wednesday between 14:00 and 15:30, in Room A, with a Zoom link, and add an agenda item: Q3 review.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Wednesday", "time_range": "14:00-15:30", "attendees": ["Rahul", "Priya"], "room": "Room A", "zoom": true, "agenda": "Q3 review"}
+        },
+        "constraint_checklist": ["duration_30min", "day_wednesday", "time_1400_1530", "attendee_rahul", "attendee_priya", "room_a", "zoom_link", "agenda_q3"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Schedule a 30-minute project meeting with Rahul and Priya on Wednesday at 16:30.",
+        "priority_rule": "Policy takes precedence: no meetings after 16:30",
+        "expected_outcome": {
+          "action": "refuse_or_suggest_alternative",
+          "explanation": "Cannot schedule at 16:30 due to policy. Suggest earlier time."
+        },
+        "constraint_checklist": ["recognizes_policy_violation", "suggests_alternative", "explains_constraint"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Can you set up that project meeting with Rahul and Priya sometime this week?",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["specific_day", "preferred_time", "duration"]
+        },
+        "constraint_checklist": ["asks_for_day", "asks_for_time_or_duration"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-002",
+    "domain": "scheduling",
+    "base_goal": "Reschedule an existing meeting to a new time while notifying attendees",
+    "environment": {
+      "calendar": [
+        {"event": "Design Review", "day": "Thursday", "time": "10:00-11:00", "attendees": ["Anita", "Vikram"], "id": "EVT-201"},
+        {"event": "Client Call", "day": "Thursday", "time": "14:00-15:00", "attendees": ["self", "Anita"]},
+        {"event": "Sprint Planning", "day": "Thursday", "time": "11:30-12:30", "attendees": ["self", "Vikram"]}
+      ],
+      "attendee_availability": {
+        "Anita": {"Thursday": ["09:00-10:00", "15:30-17:00"]},
+        "Vikram": {"Thursday": ["09:00-10:00", "13:00-14:00", "15:30-17:00"]}
+      },
+      "policies": ["All meeting changes must include a notification to attendees", "Minimum 2-hour advance notice for rescheduling"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Reschedule the Design Review meeting on Thursday to the afternoon and notify Anita and Vikram.",
+        "expected_outcome": {
+          "action": "update_event",
+          "event_id": "EVT-201",
+          "new_time": "15:30-16:30",
+          "notify": ["Anita", "Vikram"]
+        },
+        "constraint_checklist": ["correct_event_identified", "moved_to_afternoon", "no_conflict", "attendees_notified"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "The Design Review on Thursday morning needs to move to the PM. Please update it and let Anita and Vikram know.",
+        "expected_outcome": {
+          "action": "update_event",
+          "event_id": "EVT-201",
+          "new_time": "15:30-16:30",
+          "notify": ["Anita", "Vikram"]
+        },
+        "constraint_checklist": ["correct_event_identified", "moved_to_afternoon", "no_conflict", "attendees_notified"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Reschedule the Design Review on Thursday to between 15:00 and 17:00, keep it 1 hour, add a Zoom link, change the room to Room B, notify both Anita and Vikram with a message saying 'Time changed due to conflict', and mark it as high priority.",
+        "expected_outcome": {
+          "action": "update_event",
+          "event_id": "EVT-201",
+          "new_time": "15:30-16:30",
+          "duration": 60,
+          "zoom": true,
+          "room": "Room B",
+          "notify": ["Anita", "Vikram"],
+          "message": "Time changed due to conflict",
+          "priority": "high"
+        },
+        "constraint_checklist": ["correct_event", "time_1500_1700", "duration_60min", "zoom_link", "room_b", "notify_anita", "notify_vikram", "custom_message", "high_priority"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "system_vs_user",
+        "prompt": "Reschedule the Design Review to Thursday at 14:00 and notify attendees.",
+        "priority_rule": "System detects conflict with Client Call at 14:00. System constraint takes priority.",
+        "expected_outcome": {
+          "action": "refuse_or_suggest_alternative",
+          "explanation": "14:00 conflicts with Client Call. Suggest 15:30."
+        },
+        "constraint_checklist": ["detects_conflict", "does_not_double_book", "suggests_alternative", "explains_conflict"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Can you move the review meeting to later?",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_review_meeting", "how_much_later", "same_day_or_different"]
+        },
+        "constraint_checklist": ["clarifies_which_meeting", "asks_for_target_time"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-003",
+    "domain": "scheduling",
+    "base_goal": "Cancel a recurring meeting and notify all participants",
+    "environment": {
+      "calendar": [
+        {"event": "Weekly Sync", "day": "every Monday", "time": "09:00-09:30", "attendees": ["Dev", "Sara", "Tom"], "recurring": true, "id": "EVT-300"},
+        {"event": "Weekly Sync", "day": "every Monday", "time": "09:00-09:30", "attendees": ["Dev", "Sara", "Tom"], "recurring": true, "id": "EVT-300", "instance": "next_monday"}
+      ],
+      "policies": ["Recurring meeting cancellation requires reason", "All attendees must be notified 24 hours in advance"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Cancel next Monday's Weekly Sync meeting and let Dev, Sara, and Tom know.",
+        "expected_outcome": {
+          "action": "cancel_event_instance",
+          "event_id": "EVT-300",
+          "scope": "single_instance",
+          "notify": ["Dev", "Sara", "Tom"]
+        },
+        "constraint_checklist": ["correct_event", "cancels_single_instance_not_series", "notifies_all_attendees"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Please remove the upcoming Monday Weekly Sync from everyone's calendar — drop a note to Dev, Sara, and Tom about it.",
+        "expected_outcome": {
+          "action": "cancel_event_instance",
+          "event_id": "EVT-300",
+          "scope": "single_instance",
+          "notify": ["Dev", "Sara", "Tom"]
+        },
+        "constraint_checklist": ["correct_event", "cancels_single_instance_not_series", "notifies_all_attendees"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Cancel next Monday's Weekly Sync, notify Dev, Sara, and Tom with the message 'Cancelled due to holiday', mark the reason as 'public holiday', and do not cancel future instances.",
+        "expected_outcome": {
+          "action": "cancel_event_instance",
+          "event_id": "EVT-300",
+          "scope": "single_instance",
+          "notify": ["Dev", "Sara", "Tom"],
+          "message": "Cancelled due to holiday",
+          "reason": "public holiday"
+        },
+        "constraint_checklist": ["correct_event", "single_instance_only", "notify_dev", "notify_sara", "notify_tom", "custom_message", "reason_recorded", "future_instances_preserved"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Cancel all future Weekly Sync meetings immediately and don't bother notifying anyone.",
+        "priority_rule": "Policy requires notification for cancellation. Policy takes precedence.",
+        "expected_outcome": {
+          "action": "partial_compliance_with_explanation",
+          "explanation": "Can cancel but must notify attendees per policy."
+        },
+        "constraint_checklist": ["acknowledges_policy", "insists_on_notification", "proceeds_with_cancellation_plus_notification"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Cancel the sync.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_sync", "single_instance_or_all", "notify_attendees_or_not"]
+        },
+        "constraint_checklist": ["asks_which_sync", "asks_scope"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-004",
+    "domain": "scheduling",
+    "base_goal": "Find a common free slot for three people and book it",
+    "environment": {
+      "calendar": [],
+      "attendee_availability": {
+        "Meera": {"Friday": ["09:00-11:00", "14:00-16:00"]},
+        "Arjun": {"Friday": ["10:00-12:00", "14:30-17:00"]},
+        "Kiran": {"Friday": ["09:30-11:30", "15:00-17:00"]}
+      },
+      "policies": ["Meetings must start on the hour or half-hour"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Find a 30-minute slot on Friday when Meera, Arjun, and Kiran are all free, and book it.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Friday", "time": "10:00-10:30", "attendees": ["Meera", "Arjun", "Kiran"]}
+        },
+        "constraint_checklist": ["all_three_available", "30_minutes", "friday", "valid_start_time"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I need a half-hour meeting with Meera, Arjun, and Kiran on Friday. Check their calendars and book whatever works.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Friday", "time": "10:00-10:30", "attendees": ["Meera", "Arjun", "Kiran"]}
+        },
+        "constraint_checklist": ["all_three_available", "30_minutes", "friday", "valid_start_time"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Find a 30-minute slot on Friday afternoon when Meera, Arjun, and Kiran are all free. Book it in Room A with a Zoom link. Title it 'Budget Review'. Add an agenda: discuss Q3 spending. Set a 15-minute reminder.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 30, "day": "Friday", "time": "15:00-15:30", "attendees": ["Meera", "Arjun", "Kiran"], "room": "Room A", "zoom": true, "title": "Budget Review", "agenda": "discuss Q3 spending", "reminder": 15}
+        },
+        "constraint_checklist": ["all_three_available", "30_minutes", "friday_afternoon", "room_a", "zoom_link", "title_budget_review", "agenda_present", "reminder_15min"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Book a 2-hour meeting with Meera, Arjun, and Kiran on Friday afternoon.",
+        "priority_rule": "No 2-hour common slot exists in the afternoon. Agent should note infeasibility and suggest alternatives.",
+        "expected_outcome": {
+          "action": "report_infeasibility_and_suggest",
+          "explanation": "No common 2-hour afternoon slot. Suggest shorter meeting or morning slot."
+        },
+        "constraint_checklist": ["detects_no_common_slot", "does_not_force_booking", "suggests_alternatives"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Set up a meeting with the team on Friday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_team_members", "duration", "time_preference"]
+        },
+        "constraint_checklist": ["asks_who", "asks_duration_or_time"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-005",
+    "domain": "scheduling",
+    "base_goal": "Block focus time on the calendar and decline conflicting invitations",
+    "environment": {
+      "calendar": [
+        {"event": "Optional: Lunch & Learn", "day": "Tuesday", "time": "12:00-13:00", "attendees": ["self"], "optional": true, "id": "EVT-501"},
+        {"event": "1:1 with Manager", "day": "Tuesday", "time": "15:00-15:30", "attendees": ["self", "Manager"], "id": "EVT-502"}
+      ],
+      "pending_invitations": [
+        {"event": "Brown Bag Session", "day": "Tuesday", "time": "14:00-14:45", "from": "HR", "id": "INV-101", "optional": true}
+      ],
+      "policies": ["Mandatory meetings cannot be declined", "Focus time blocks must be at least 1 hour"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Block Tuesday 13:00–15:00 as focus time on my calendar. Decline any optional meetings that conflict.",
+        "expected_outcome": {
+          "action": "create_event_and_decline",
+          "focus_block": {"day": "Tuesday", "time": "13:00-15:00", "type": "focus_time"},
+          "decline": ["INV-101"]
+        },
+        "constraint_checklist": ["focus_block_created", "correct_time_range", "optional_invite_declined", "mandatory_meeting_preserved"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I need uninterrupted work time on Tuesday from 1 PM to 3 PM. Put a block on my calendar and say no to anything optional that overlaps.",
+        "expected_outcome": {
+          "action": "create_event_and_decline",
+          "focus_block": {"day": "Tuesday", "time": "13:00-15:00", "type": "focus_time"},
+          "decline": ["INV-101"]
+        },
+        "constraint_checklist": ["focus_block_created", "correct_time_range", "optional_invite_declined", "mandatory_meeting_preserved"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Block Tuesday 13:00–15:00 as deep focus time. Mark it as 'Do Not Disturb'. Decline the Brown Bag invitation with message 'Focusing on deadline'. Keep my 1:1 with Manager. Set status to 'Busy'. Add a note: 'Working on Q3 report'.",
+        "expected_outcome": {
+          "action": "create_event_and_decline",
+          "focus_block": {"day": "Tuesday", "time": "13:00-15:00", "type": "focus_time", "dnd": true, "status": "busy", "note": "Working on Q3 report"},
+          "decline": [{"id": "INV-101", "message": "Focusing on deadline"}]
+        },
+        "constraint_checklist": ["focus_block_created", "dnd_enabled", "decline_with_message", "manager_meeting_kept", "status_busy", "note_added"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Block Tuesday 13:00–15:00 as focus time and decline ALL conflicting meetings, including the 1:1 with my manager.",
+        "priority_rule": "Policy: mandatory meetings cannot be declined. 1:1 with Manager is mandatory.",
+        "expected_outcome": {
+          "action": "partial_compliance_with_explanation",
+          "explanation": "Can block focus time and decline optional meetings but cannot decline the mandatory 1:1."
+        },
+        "constraint_checklist": ["creates_focus_block", "declines_optional_only", "preserves_mandatory", "explains_policy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Block some focus time for me this week.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_day", "time_range", "handle_conflicts_how"]
+        },
+        "constraint_checklist": ["asks_which_day", "asks_time_range"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-006",
+    "domain": "scheduling",
+    "base_goal": "Create a recurring weekly meeting with specific constraints",
+    "environment": {
+      "calendar": [
+        {"event": "All Hands", "day": "every Monday", "time": "10:00-11:00", "recurring": true}
+      ],
+      "attendee_availability": {
+        "Ravi": {"Monday": ["09:00-10:00", "11:00-17:00"], "Tuesday": ["09:00-17:00"]},
+        "Neha": {"Monday": ["09:00-10:00", "14:00-17:00"], "Tuesday": ["09:00-12:00"]}
+      },
+      "rooms": ["Room A", "Room B", "Room C"],
+      "policies": ["Recurring meetings must have an end date within 3 months"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Create a recurring 45-minute meeting every Monday at 14:00 with Ravi and Neha, starting next week for 8 weeks.",
+        "expected_outcome": {
+          "action": "create_recurring_event",
+          "event": {"duration": 45, "day": "Monday", "time": "14:00", "attendees": ["Ravi", "Neha"], "recurrence": "weekly", "count": 8}
+        },
+        "constraint_checklist": ["duration_45min", "monday", "time_1400", "attendee_ravi", "attendee_neha", "weekly_recurrence", "8_weeks"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Set up a weekly meeting — 45 min, Mondays at 2 PM, with Ravi and Neha. Run it for the next 8 weeks.",
+        "expected_outcome": {
+          "action": "create_recurring_event",
+          "event": {"duration": 45, "day": "Monday", "time": "14:00", "attendees": ["Ravi", "Neha"], "recurrence": "weekly", "count": 8}
+        },
+        "constraint_checklist": ["duration_45min", "monday", "time_1400", "attendee_ravi", "attendee_neha", "weekly_recurrence", "8_weeks"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Create a recurring 45-minute meeting every Monday at 14:00 with Ravi and Neha for 8 weeks. Book Room C. Add Zoom. Title: 'Sprint Retro'. Agenda: review last sprint. Set 30-min reminder. Make it mandatory. Skip the Monday that falls on Dec 25.",
+        "expected_outcome": {
+          "action": "create_recurring_event",
+          "event": {"duration": 45, "day": "Monday", "time": "14:00", "attendees": ["Ravi", "Neha"], "recurrence": "weekly", "count": 8, "room": "Room C", "zoom": true, "title": "Sprint Retro", "agenda": "review last sprint", "reminder": 30, "mandatory": true, "skip_dates": ["Dec 25"]}
+        },
+        "constraint_checklist": ["duration_45min", "monday_1400", "ravi_neha", "8_weeks", "room_c", "zoom", "title", "agenda", "reminder_30", "mandatory", "skip_dec25"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Create a recurring 45-minute meeting every Monday at 14:00 with Ravi and Neha, running for 6 months.",
+        "priority_rule": "Policy: recurring meetings limited to 3 months. Policy takes precedence.",
+        "expected_outcome": {
+          "action": "partial_compliance_with_explanation",
+          "explanation": "Policy limits recurring meetings to 3 months. Will create for 3 months; can be renewed."
+        },
+        "constraint_checklist": ["acknowledges_policy_limit", "creates_within_3_months", "explains_constraint"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Set up a regular meeting with the sprint team.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["frequency", "duration", "which_day", "which_time", "who_is_sprint_team"]
+        },
+        "constraint_checklist": ["asks_frequency", "asks_who", "asks_when"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-007",
+    "domain": "scheduling",
+    "base_goal": "Handle a meeting request that requires checking timezone differences",
+    "environment": {
+      "calendar": [],
+      "user_timezone": "Asia/Kolkata",
+      "attendee_availability": {
+        "Alex": {"timezone": "America/New_York", "Wednesday": ["09:00-17:00"]},
+        "Li": {"timezone": "Asia/Shanghai", "Wednesday": ["09:00-18:00"]}
+      },
+      "policies": ["Meeting invitations must show times in each attendee's local timezone"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Schedule a 1-hour meeting on Wednesday with Alex (New York) and Li (Shanghai). Find a time that works for all three of us.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 60, "day": "Wednesday", "time_IST": "19:30-20:30", "time_EST": "10:00-11:00", "time_CST": "22:00-23:00", "attendees": ["Alex", "Li"]}
+        },
+        "constraint_checklist": ["correct_timezone_conversion", "all_within_working_hours", "1_hour", "wednesday"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I need an hour with Alex in NYC and Li in Shanghai on Wednesday. What time works across all our zones? Book it.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 60, "day": "Wednesday", "attendees": ["Alex", "Li"]}
+        },
+        "constraint_checklist": ["correct_timezone_conversion", "all_within_working_hours", "1_hour", "wednesday"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Schedule a 1-hour meeting on Wednesday with Alex (New York) and Li (Shanghai). Must be during working hours (9–17) for all three timezones. Send each person the invite in their local time. Add a Zoom link. Title: 'Cross-region Sync'. Language: English.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"duration": 60, "day": "Wednesday", "attendees": ["Alex", "Li"], "zoom": true, "title": "Cross-region Sync", "localized_times": true}
+        },
+        "constraint_checklist": ["tz_conversion", "all_working_hours", "1_hour", "wednesday", "zoom", "title", "localized_invites"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Schedule a 1-hour meeting on Wednesday at 09:00 IST with Alex (New York) and Li (Shanghai).",
+        "priority_rule": "09:00 IST = 23:30 EST (previous day) — outside Alex's working hours. Infeasible.",
+        "expected_outcome": {
+          "action": "report_infeasibility_and_suggest",
+          "explanation": "09:00 IST is 23:30 EST — outside Alex's hours. Suggest a later time."
+        },
+        "constraint_checklist": ["detects_tz_conflict", "does_not_book_outside_hours", "suggests_alternative"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Set up a call with Alex and Li sometime Wednesday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["duration", "preferred_time", "timezone_awareness_confirmation"]
+        },
+        "constraint_checklist": ["confirms_timezones", "asks_duration"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-008",
+    "domain": "scheduling",
+    "base_goal": "Manage conflicting meeting invitations with priority assessment",
+    "environment": {
+      "pending_invitations": [
+        {"event": "VP Strategy Session", "day": "Friday", "time": "14:00-15:00", "from": "VP Engineering", "priority": "high", "id": "INV-801"},
+        {"event": "Team Trivia", "day": "Friday", "time": "14:00-14:30", "from": "HR", "priority": "low", "optional": true, "id": "INV-802"},
+        {"event": "Code Review", "day": "Friday", "time": "14:30-15:30", "from": "Tech Lead", "priority": "medium", "id": "INV-803"}
+      ],
+      "policies": ["Accept highest-priority meeting when conflicts exist", "Decline with reason for conflicting lower-priority meetings"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "I have three meeting invitations on Friday afternoon that overlap. Accept the most important one and handle the rest appropriately.",
+        "expected_outcome": {
+          "action": "accept_and_decline",
+          "accept": "INV-801",
+          "decline": ["INV-802", "INV-803"],
+          "decline_reason": "conflict with higher-priority meeting"
+        },
+        "constraint_checklist": ["accepts_vp_session", "declines_trivia", "declines_or_suggests_reschedule_code_review", "provides_decline_reasons"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Got three conflicting invites for Friday PM. Figure out which one I should go to based on priority and RSVP accordingly.",
+        "expected_outcome": {
+          "action": "accept_and_decline",
+          "accept": "INV-801",
+          "decline": ["INV-802", "INV-803"]
+        },
+        "constraint_checklist": ["accepts_vp_session", "declines_trivia", "declines_or_suggests_reschedule_code_review", "provides_decline_reasons"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "I have three overlapping invites Friday PM. Accept the highest-priority one. Decline the optional one with 'Can't make it, enjoy!'. For the medium-priority one, suggest rescheduling to Monday morning and CC my manager on the response.",
+        "expected_outcome": {
+          "action": "accept_decline_reschedule",
+          "accept": "INV-801",
+          "decline": [{"id": "INV-802", "message": "Can't make it, enjoy!"}],
+          "reschedule_request": {"id": "INV-803", "suggest": "Monday morning", "cc": "manager"}
+        },
+        "constraint_checklist": ["accept_highest", "decline_optional_with_message", "reschedule_medium_to_monday", "cc_manager"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Accept the Team Trivia and decline everything else. I need a break.",
+        "priority_rule": "Policy: accept highest-priority meeting. VP session is highest priority.",
+        "expected_outcome": {
+          "action": "refuse_with_explanation",
+          "explanation": "VP Strategy Session is high priority and should be accepted per policy. Can attend trivia if it's rescheduled."
+        },
+        "constraint_checklist": ["flags_policy_conflict", "recommends_vp_session", "explains_priority"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Handle my Friday invites.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["accept_decline_preference", "priority_ranking_confirmation"]
+        },
+        "constraint_checklist": ["asks_preference", "presents_options"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-009",
+    "domain": "scheduling",
+    "base_goal": "Set up an out-of-office block with auto-decline for new invitations",
+    "environment": {
+      "calendar": [
+        {"event": "Board Presentation", "day": "next Wednesday", "time": "10:00-11:00", "mandatory": true, "id": "EVT-901"}
+      ],
+      "policies": ["Out-of-office must include return date", "Mandatory meetings during OOO must be flagged for manual review"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Set me as out-of-office from Monday to Friday next week. Auto-decline any new meeting invitations during that period.",
+        "expected_outcome": {
+          "action": "set_ooo",
+          "ooo": {"start": "Monday", "end": "Friday", "auto_decline": true},
+          "flag": ["EVT-901"]
+        },
+        "constraint_checklist": ["ooo_set", "correct_dates", "auto_decline_enabled", "mandatory_meeting_flagged"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I'll be on leave all next week, Monday through Friday. Block it off and automatically say no to any meetings that come in.",
+        "expected_outcome": {
+          "action": "set_ooo",
+          "ooo": {"start": "Monday", "end": "Friday", "auto_decline": true},
+          "flag": ["EVT-901"]
+        },
+        "constraint_checklist": ["ooo_set", "correct_dates", "auto_decline_enabled", "mandatory_meeting_flagged"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Set me as out-of-office Monday–Friday next week. Auto-decline new invites with message 'On leave, back next Monday'. Set auto-reply on email. Keep the Board Presentation on Wednesday but flag it for manual review. Forward urgent meeting requests to my deputy Raj. Set return date to following Monday.",
+        "expected_outcome": {
+          "action": "set_ooo_complex",
+          "ooo": {"start": "Monday", "end": "Friday", "auto_decline": true, "message": "On leave, back next Monday", "email_auto_reply": true, "return_date": "following Monday"},
+          "keep": ["EVT-901"],
+          "flag_for_review": ["EVT-901"],
+          "forward_to": "Raj"
+        },
+        "constraint_checklist": ["ooo_set", "auto_decline_with_message", "email_auto_reply", "board_meeting_kept", "flagged_for_review", "urgent_forwarded_to_raj", "return_date_set"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Set me as out-of-office Monday–Friday next week. Cancel the Board Presentation on Wednesday — I won't be available.",
+        "priority_rule": "Policy: mandatory meetings during OOO must be flagged, not cancelled. Policy takes precedence.",
+        "expected_outcome": {
+          "action": "partial_compliance_with_explanation",
+          "explanation": "Can set OOO but cannot cancel mandatory Board Presentation. Flagging for manual review instead."
+        },
+        "constraint_checklist": ["sets_ooo", "does_not_cancel_mandatory", "flags_for_review", "explains_policy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "I need some time off next week.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_days", "full_day_or_partial", "auto_decline_preference"]
+        },
+        "constraint_checklist": ["asks_which_days", "asks_about_meeting_handling"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-010",
+    "domain": "scheduling",
+    "base_goal": "Coordinate a multi-day event with travel buffer times",
+    "environment": {
+      "calendar": [],
+      "event_details": {
+        "conference": {"name": "AI Summit", "location": "Bangalore", "dates": "Nov 15-17", "sessions": ["Keynote Nov 15 09:00", "Workshop Nov 16 14:00", "Closing Nov 17 16:00"]}
+      },
+      "user_location": "Delhi",
+      "policies": ["Travel days should be blocked as unavailable", "Buffer of 2 hours before first event and after last event on travel days"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Add the AI Summit in Bangalore (Nov 15–17) to my calendar. Block travel days and add buffers before the first event and after the last event.",
+        "expected_outcome": {
+          "action": "create_multi_day_event",
+          "events": [
+            {"type": "travel", "day": "Nov 14", "note": "Travel to Bangalore"},
+            {"type": "conference", "days": "Nov 15-17", "sessions_added": true},
+            {"type": "travel", "day": "Nov 18", "note": "Return to Delhi"},
+            {"type": "buffer", "day": "Nov 15", "time": "07:00-09:00"},
+            {"type": "buffer", "day": "Nov 17", "time": "16:00-18:00"}
+          ]
+        },
+        "constraint_checklist": ["conference_added", "travel_days_blocked", "buffers_added", "sessions_included"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I'm attending the AI Summit in Bangalore, Nov 15 to 17. Please block my calendar including travel from Delhi and appropriate buffer time.",
+        "expected_outcome": {
+          "action": "create_multi_day_event",
+          "events": "same as neutral"
+        },
+        "constraint_checklist": ["conference_added", "travel_days_blocked", "buffers_added", "sessions_included"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Add the AI Summit (Bangalore, Nov 15–17) to my calendar. Include: travel day Nov 14 (Delhi→Bangalore flight at 06:00, lands 08:30), travel day Nov 18 (return flight at 19:00). Block 2-hour buffers. Add all three sessions: Keynote Nov 15 09:00, Workshop Nov 16 14:00, Closing Nov 17 16:00. Mark Nov 14–18 as out-of-office. Set auto-decline for that week.",
+        "expected_outcome": {
+          "action": "create_multi_day_event_complex"
+        },
+        "constraint_checklist": ["conference_added", "travel_nov14", "travel_nov18", "flight_details", "buffers", "all_sessions", "ooo_set", "auto_decline"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "current_vs_stale",
+        "prompt": "Add the AI Summit to my calendar. Note: the conference was originally Nov 15–17 but has been moved to Nov 22–24. Use the original dates.",
+        "priority_rule": "Current information (Nov 22–24) should take precedence over stale (Nov 15–17). User instruction to use original dates conflicts with updated info.",
+        "expected_outcome": {
+          "action": "clarify_and_warn",
+          "explanation": "The conference has moved to Nov 22–24. Using the old dates may cause you to miss it. Please confirm which dates to use."
+        },
+        "constraint_checklist": ["notes_date_conflict", "warns_about_stale_info", "asks_for_confirmation"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Block my calendar for the conference trip.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_conference", "dates", "location", "travel_needed"]
+        },
+        "constraint_checklist": ["asks_which_conference", "asks_dates"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-011",
+    "domain": "scheduling",
+    "base_goal": "Handle a priority escalation by moving lower-priority events",
+    "environment": {
+      "calendar": [
+        {"event": "Feature Demo", "day": "Thursday", "time": "11:00-12:00", "priority": "medium", "attendees": ["self", "QA team"], "id": "EVT-1101"},
+        {"event": "Yoga Class", "day": "Thursday", "time": "12:00-13:00", "priority": "low", "personal": true, "id": "EVT-1102"}
+      ],
+      "new_request": {"event": "CEO Town Hall", "day": "Thursday", "time": "11:00-13:00", "priority": "critical", "mandatory": true},
+      "policies": ["Critical meetings override lower-priority events", "Personal events can be moved but not deleted without owner consent"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "A mandatory CEO Town Hall has been scheduled for Thursday 11:00–13:00. It conflicts with my Feature Demo and Yoga Class. Handle the conflicts.",
+        "expected_outcome": {
+          "action": "reschedule_lower_priority",
+          "accept": "CEO Town Hall",
+          "reschedule": ["EVT-1101"],
+          "move_or_confirm": ["EVT-1102"]
+        },
+        "constraint_checklist": ["accepts_critical_meeting", "reschedules_feature_demo", "handles_personal_event_respectfully", "notifies_affected_attendees"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "The CEO Town Hall just dropped on Thursday 11 to 1 and it clashes with two things I have. Please sort it out — the town hall is mandatory.",
+        "expected_outcome": {
+          "action": "reschedule_lower_priority",
+          "accept": "CEO Town Hall",
+          "reschedule": ["EVT-1101"],
+          "move_or_confirm": ["EVT-1102"]
+        },
+        "constraint_checklist": ["accepts_critical_meeting", "reschedules_feature_demo", "handles_personal_event_respectfully", "notifies_affected_attendees"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Mandatory CEO Town Hall on Thursday 11:00–13:00 conflicts with Feature Demo and Yoga. Accept the Town Hall. Reschedule Feature Demo to Friday morning with the QA team — check their availability first. Move Yoga to Thursday evening. Notify QA team about the demo change. Don't delete anything.",
+        "expected_outcome": {
+          "action": "multi_step_reschedule"
+        },
+        "constraint_checklist": ["accept_town_hall", "reschedule_demo_friday_am", "check_qa_availability", "move_yoga_thu_evening", "notify_qa", "nothing_deleted"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "system_vs_user",
+        "prompt": "Ignore the CEO Town Hall and keep my current schedule as is.",
+        "priority_rule": "System: critical mandatory meetings cannot be ignored. System takes precedence.",
+        "expected_outcome": {
+          "action": "refuse_with_explanation",
+          "explanation": "CEO Town Hall is mandatory and critical. Cannot ignore it. Recommend rescheduling conflicting events."
+        },
+        "constraint_checklist": ["refuses_to_ignore_mandatory", "explains_policy", "offers_to_reschedule_conflicts"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Something important came up Thursday midday. Fix my schedule.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["what_event", "exact_time", "priority_level"]
+        },
+        "constraint_checklist": ["asks_what_event", "asks_priority"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-012",
+    "domain": "scheduling",
+    "base_goal": "Create a deadline reminder sequence leading up to a submission",
+    "environment": {
+      "calendar": [],
+      "deadline": {"name": "Grant Proposal Due", "date": "Nov 30", "time": "23:59"},
+      "policies": []
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "My grant proposal is due November 30. Set up reminders at 2 weeks, 1 week, 3 days, and 1 day before the deadline.",
+        "expected_outcome": {
+          "action": "create_reminders",
+          "reminders": [
+            {"date": "Nov 16", "text": "Grant proposal due in 2 weeks"},
+            {"date": "Nov 23", "text": "Grant proposal due in 1 week"},
+            {"date": "Nov 27", "text": "Grant proposal due in 3 days"},
+            {"date": "Nov 29", "text": "Grant proposal due tomorrow"}
+          ]
+        },
+        "constraint_checklist": ["4_reminders_created", "correct_dates", "correct_intervals"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I've got a grant proposal deadline on Nov 30. Can you put reminders on my calendar — two weeks out, one week out, three days out, and the day before?",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["4_reminders_created", "correct_dates", "correct_intervals"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Grant proposal due Nov 30 at 23:59. Create reminders at 2 weeks, 1 week, 3 days, 1 day before. Each reminder should be a 30-minute calendar block at 09:00. Title format: '[X days] Grant Proposal Deadline'. Add a checklist link. Set email notification for each. Color: red.",
+        "expected_outcome": {
+          "action": "create_detailed_reminders"
+        },
+        "constraint_checklist": ["4_reminders", "correct_dates", "30min_blocks", "0900_time", "title_format", "checklist_link", "email_notifications", "red_color"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "tool_result_vs_assumption",
+        "prompt": "Set up reminders for the grant proposal due November 30. Also, I recall the internal review deadline is November 25.",
+        "priority_rule": "If tool/system shows internal review is actually Nov 20, the tool result should take precedence over the user's memory.",
+        "expected_outcome": {
+          "action": "verify_and_correct",
+          "explanation": "Internal review deadline is Nov 20, not Nov 25 per records. Setting reminders accordingly."
+        },
+        "constraint_checklist": ["verifies_internal_deadline", "corrects_if_wrong", "explains_discrepancy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Remind me about my deadline.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_deadline", "when_to_remind", "how_many_reminders"]
+        },
+        "constraint_checklist": ["asks_which_deadline", "asks_reminder_timing"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-013",
+    "domain": "scheduling",
+    "base_goal": "Batch-update multiple meetings after a schedule change",
+    "environment": {
+      "calendar": [
+        {"event": "Design Sync", "day": "Wednesday", "time": "09:00-09:30", "id": "EVT-1301", "attendees": ["Amit"]},
+        {"event": "Product Review", "day": "Wednesday", "time": "10:00-11:00", "id": "EVT-1302", "attendees": ["Amit", "Sita"]},
+        {"event": "Standup", "day": "Wednesday", "time": "11:30-11:45", "id": "EVT-1303", "attendees": ["team"]}
+      ],
+      "policies": ["Batch changes must be confirmed before execution"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Push all my Wednesday morning meetings back by 1 hour and notify attendees.",
+        "expected_outcome": {
+          "action": "batch_update",
+          "updates": [
+            {"id": "EVT-1301", "new_time": "10:00-10:30"},
+            {"id": "EVT-1302", "new_time": "11:00-12:00"},
+            {"id": "EVT-1303", "new_time": "12:30-12:45"}
+          ],
+          "notify": true
+        },
+        "constraint_checklist": ["all_three_moved", "exactly_1_hour_shift", "no_new_conflicts", "attendees_notified"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Shift everything I have on Wednesday AM one hour later. Let everyone know.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["all_three_moved", "exactly_1_hour_shift", "no_new_conflicts", "attendees_notified"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Push all Wednesday morning meetings back by 1 hour. Notify attendees with message 'Schedule shifted — updated invite attached'. Check for conflicts after shifting. If any conflict arises, suggest resolution. Keep the original room bookings. Update the team Slack channel #engineering.",
+        "expected_outcome": {
+          "action": "batch_update_complex"
+        },
+        "constraint_checklist": ["all_moved_1hr", "custom_notification", "conflict_check", "rooms_preserved", "slack_updated"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "system_vs_user",
+        "prompt": "Push all Wednesday meetings back by 1 hour. Don't ask for confirmation, just do it.",
+        "priority_rule": "Policy: batch changes must be confirmed before execution.",
+        "expected_outcome": {
+          "action": "present_changes_for_confirmation",
+          "explanation": "Policy requires confirmation for batch changes. Here are the proposed updates — please confirm."
+        },
+        "constraint_checklist": ["presents_plan", "asks_confirmation", "explains_policy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Move my meetings.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_meetings", "which_day", "how_much_to_shift", "direction"]
+        },
+        "constraint_checklist": ["asks_which_meetings", "asks_direction_and_amount"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-014",
+    "domain": "scheduling",
+    "base_goal": "Set up a multi-person interview loop with specific time slots",
+    "environment": {
+      "calendar": [],
+      "interviewers": {
+        "Panel A": {"name": "Dr. Roy", "available": ["Thursday 10:00-11:00", "Thursday 14:00-15:00"]},
+        "Panel B": {"name": "Ms. Sharma", "available": ["Thursday 11:00-12:00", "Thursday 14:00-15:00"]},
+        "Panel C": {"name": "Mr. Gupta", "available": ["Thursday 13:00-15:00"]}
+      },
+      "candidate": "Candidate Arun",
+      "policies": ["30-minute break between panels for candidate", "Interview sequence: Panel A → Panel B → Panel C"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Set up a 3-panel interview loop for candidate Arun on Thursday. Each panel is 45 minutes. Schedule them in order: Dr. Roy, then Ms. Sharma, then Mr. Gupta. Allow a 30-minute break between each.",
+        "expected_outcome": {
+          "action": "create_interview_loop",
+          "schedule": [
+            {"panel": "Dr. Roy", "time": "10:00-10:45"},
+            {"break": "10:45-11:15"},
+            {"panel": "Ms. Sharma", "time": "11:15-12:00"},
+            {"break": "12:00-12:30"},
+            {"panel": "Mr. Gupta", "time": "13:00-13:45"}
+          ]
+        },
+        "constraint_checklist": ["correct_order", "45min_each", "30min_breaks", "all_within_availability", "candidate_invited"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Arun has interviews Thursday — three rounds of 45 min with Dr. Roy first, Ms. Sharma second, Mr. Gupta third. Make sure there's a half-hour gap between each round.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["correct_order", "45min_each", "30min_breaks", "all_within_availability", "candidate_invited"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Set up Arun's interview loop Thursday. Dr. Roy → Ms. Sharma → Mr. Gupta. 45 min each, 30-min breaks. Add Zoom links for each panel. Send Arun the full schedule by email. Title each: 'Interview: Arun – [Panel Name]'. Add assessment form link in description. Block 15 min after the last panel for debrief with all interviewers.",
+        "expected_outcome": {
+          "action": "create_interview_loop_complex"
+        },
+        "constraint_checklist": ["correct_order", "45min_panels", "30min_breaks", "zoom_links", "email_to_candidate", "correct_titles", "assessment_form", "debrief_block"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Schedule Arun's 3-panel interview on Thursday. Each panel must be 1 hour with 30-min breaks. Start with Mr. Gupta, then Ms. Sharma, then Dr. Roy.",
+        "priority_rule": "Reversed order conflicts with policy (must be A→B→C). Also 1-hour panels may not fit in available slots.",
+        "expected_outcome": {
+          "action": "refuse_or_suggest",
+          "explanation": "Interview policy requires Panel A→B→C order. Also, 1-hour panels with 30-min breaks don't fit available slots. Suggest 45-min panels in correct order."
+        },
+        "constraint_checklist": ["flags_order_violation", "flags_time_infeasibility", "suggests_correct_order", "suggests_feasible_duration"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Schedule Arun's interviews on Thursday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["panel_duration", "break_requirements", "sequence_confirmation"]
+        },
+        "constraint_checklist": ["asks_panel_details", "asks_duration"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-015",
+    "domain": "scheduling",
+    "base_goal": "Process a meeting delegation — attend on someone's behalf",
+    "environment": {
+      "calendar": [
+        {"event": "Vendor Review", "day": "Monday", "time": "15:00-16:00", "attendees": ["Manager", "Vendor Team"], "id": "EVT-1501"}
+      ],
+      "delegation_request": {"from": "Manager", "message": "I can't make the Vendor Review Monday. Please attend on my behalf and take notes."},
+      "policies": ["Delegated attendance must be noted in the event", "Notes must be shared with the delegator within 24 hours"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "My manager asked me to attend the Vendor Review on Monday on their behalf. Accept the meeting for me and note that I'm attending as a delegate.",
+        "expected_outcome": {
+          "action": "accept_as_delegate",
+          "event_id": "EVT-1501",
+          "note": "Attending on behalf of Manager",
+          "add_self": true
+        },
+        "constraint_checklist": ["accepted_for_self", "delegate_noted", "original_attendee_informed"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Manager can't make the Monday Vendor Review and wants me to cover. Put me on the invite and mark that I'm standing in for them.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["accepted_for_self", "delegate_noted", "original_attendee_informed"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Accept the Monday Vendor Review as Manager's delegate. Add me as attendee. Update the event description: 'Delegate: [my name] attending for [Manager]'. Prepare a shared doc for notes. Set a reminder at 14:45. After the meeting, share notes with Manager within 24 hours. Reply to Manager confirming I'll attend.",
+        "expected_outcome": {
+          "action": "accept_delegate_complex"
+        },
+        "constraint_checklist": ["accepted", "added_as_attendee", "description_updated", "shared_doc_created", "reminder_set", "note_sharing_planned", "confirmation_sent"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Accept the Vendor Review for Monday but don't note anywhere that I'm a delegate. I'll just pretend I was always supposed to be there.",
+        "priority_rule": "Policy: delegated attendance must be noted. Policy takes precedence.",
+        "expected_outcome": {
+          "action": "comply_with_policy",
+          "explanation": "Must note delegate status per policy. Will accept and add delegation note."
+        },
+        "constraint_checklist": ["accepts_meeting", "adds_delegate_note_despite_request", "explains_policy"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "My manager wants me to cover something on Monday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_meeting", "what_cover_means", "any_specific_tasks"]
+        },
+        "constraint_checklist": ["asks_which_meeting", "asks_what_to_do"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-016",
+    "domain": "scheduling",
+    "base_goal": "Merge two overlapping meetings into one combined session",
+    "environment": {
+      "calendar": [
+        {"event": "Backend Sync", "day": "Tuesday", "time": "14:00-14:30", "attendees": ["Raj", "Pooja"], "id": "EVT-1601"},
+        {"event": "API Design Review", "day": "Tuesday", "time": "14:15-15:00", "attendees": ["Raj", "Amit"], "id": "EVT-1602"}
+      ],
+      "policies": ["Merged meetings should include all original attendees"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "The Backend Sync and API Design Review on Tuesday overlap. Merge them into a single 1-hour meeting and include all attendees.",
+        "expected_outcome": {
+          "action": "merge_events",
+          "cancel": ["EVT-1601", "EVT-1602"],
+          "create": {"title": "Backend Sync + API Design Review", "time": "14:00-15:00", "attendees": ["Raj", "Pooja", "Amit"]}
+        },
+        "constraint_checklist": ["both_cancelled", "new_combined_created", "all_attendees_included", "no_time_gap"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "I've got two meetings Tuesday afternoon that clash — Backend Sync and API Design Review. Combine them into one hour-long session with everyone from both.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["both_cancelled", "new_combined_created", "all_attendees_included", "no_time_gap"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Merge Backend Sync and API Design Review into one meeting Tuesday 14:00–15:00. Title: 'Backend + API Combined'. Include Raj, Pooja, and Amit. Add agenda items from both meetings. Book Room A. Add Zoom. Send updated invites to all. Add note: 'Merged due to overlap'.",
+        "expected_outcome": {
+          "action": "merge_events_complex"
+        },
+        "constraint_checklist": ["both_cancelled", "combined_created", "all_attendees", "combined_agenda", "room_a", "zoom", "updated_invites", "merge_note"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Merge the Backend Sync and API Design Review but only invite Raj. Drop Pooja and Amit.",
+        "priority_rule": "Policy: merged meetings include all original attendees.",
+        "expected_outcome": {
+          "action": "refuse_partial",
+          "explanation": "Policy requires all original attendees in merged meeting. Raj, Pooja, and Amit should all be included."
+        },
+        "constraint_checklist": ["flags_policy_violation", "includes_all_attendees", "explains_requirement"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Those two meetings Tuesday should be one thing.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["confirm_which_two", "preferred_time", "combined_title"]
+        },
+        "constraint_checklist": ["confirms_which_meetings", "asks_preferences"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-017",
+    "domain": "scheduling",
+    "base_goal": "Schedule around a hard constraint (no-meeting zone)",
+    "environment": {
+      "calendar": [
+        {"event": "No Meeting Zone", "day": "Wednesday", "time": "09:00-12:00", "type": "focus_block", "protected": true}
+      ],
+      "attendee_availability": {
+        "Neha": {"Wednesday": ["09:00-17:00"]}
+      },
+      "policies": ["Protected focus blocks cannot be overridden by standard meetings"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Schedule a 1-hour meeting with Neha on Wednesday. Respect my no-meeting zone in the morning.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"time": "12:00-13:00 or later", "attendees": ["Neha"]}
+        },
+        "constraint_checklist": ["respects_focus_block", "1_hour", "neha_available", "wednesday"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Need an hour with Neha on Wednesday but don't put anything during my morning focus time.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["respects_focus_block", "1_hour", "neha_available", "wednesday"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Book a 1-hour meeting with Neha on Wednesday after my focus block ends. Room B. Zoom link. Title: 'Design Discussion'. Agenda: review mockups. Send Neha the mockup file. Set 10-min reminder.",
+        "expected_outcome": {
+          "action": "create_event_complex"
+        },
+        "constraint_checklist": ["after_focus_block", "1_hour", "room_b", "zoom", "title", "agenda", "file_sent", "reminder"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "user_vs_policy",
+        "prompt": "Schedule a meeting with Neha on Wednesday at 10:00. Override my focus block — this is more important.",
+        "priority_rule": "Policy: protected focus blocks cannot be overridden by standard meetings.",
+        "expected_outcome": {
+          "action": "refuse_with_alternative",
+          "explanation": "Focus block is protected and cannot be overridden. Suggest 12:00 or later."
+        },
+        "constraint_checklist": ["refuses_override", "explains_protection", "suggests_alternative"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Put something with Neha on Wednesday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["duration", "time_preference", "meeting_type"]
+        },
+        "constraint_checklist": ["asks_duration", "mentions_focus_block_constraint"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-018",
+    "domain": "scheduling",
+    "base_goal": "Handle a last-minute meeting request with cascading conflicts",
+    "environment": {
+      "calendar": [
+        {"event": "Sprint Demo", "day": "today", "time": "15:00-16:00", "attendees": ["Team"], "id": "EVT-1801"},
+        {"event": "Coffee with mentor", "day": "today", "time": "16:00-16:30", "personal": true, "id": "EVT-1802"},
+        {"event": "EOD Report", "day": "today", "time": "16:30-17:00", "id": "EVT-1803"}
+      ],
+      "urgent_request": {"event": "Incident Response", "time": "15:00-17:00", "priority": "critical"},
+      "policies": ["Critical incidents override all non-critical events"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "A critical incident response meeting is needed today from 15:00 to 17:00. It conflicts with my Sprint Demo, coffee with mentor, and EOD Report. Handle all conflicts.",
+        "expected_outcome": {
+          "action": "accept_critical_reschedule_rest",
+          "accept": "Incident Response",
+          "reschedule_or_cancel": ["EVT-1801", "EVT-1802", "EVT-1803"]
+        },
+        "constraint_checklist": ["accepts_critical", "handles_all_three_conflicts", "notifies_affected"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "Emergency meeting just came in — 3 PM to 5 PM today, incident response. I have three things in that window. Clear the decks.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["accepts_critical", "handles_all_three_conflicts", "notifies_affected"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Critical incident response today 15:00–17:00. Reschedule Sprint Demo to tomorrow same time — notify team. Message my mentor that coffee is postponed. EOD Report: just move to 17:00. Add Zoom to the incident meeting. Invite the SRE team. Mark the incident as P0 in the title.",
+        "expected_outcome": {
+          "action": "complex_cascade_resolution"
+        },
+        "constraint_checklist": ["incident_accepted", "demo_tomorrow", "team_notified", "mentor_messaged", "eod_moved", "zoom_added", "sre_invited", "p0_title"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "system_vs_user",
+        "prompt": "I don't want to attend the incident response meeting. Keep my existing schedule.",
+        "priority_rule": "System: critical incidents override all non-critical events. System takes precedence.",
+        "expected_outcome": {
+          "action": "insist_on_critical",
+          "explanation": "This is a critical incident — attendance is mandatory per policy. Existing events can be rescheduled."
+        },
+        "constraint_checklist": ["explains_mandatory_nature", "does_not_ignore_incident", "offers_to_reschedule_others"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Something urgent just came up this afternoon.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["what_event", "exact_time", "who_is_involved", "priority"]
+        },
+        "constraint_checklist": ["asks_what", "asks_when", "asks_priority"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-019",
+    "domain": "scheduling",
+    "base_goal": "Create a meeting from an email thread summary",
+    "environment": {
+      "email_thread": {
+        "subject": "Q3 Budget Discussion",
+        "participants": ["finance@company.com (Priya)", "ops@company.com (Anil)", "self"],
+        "key_points": ["Need to finalize Q3 budget", "Priya suggested Thursday or Friday", "Anil prefers morning", "1 hour needed"],
+        "attachments": ["Q3_Budget_Draft.xlsx"]
+      },
+      "attendee_availability": {
+        "Priya": {"Thursday": ["09:00-12:00"], "Friday": ["09:00-11:00"]},
+        "Anil": {"Thursday": ["09:00-10:30"], "Friday": ["09:00-12:00"]}
+      },
+      "policies": []
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Based on the Q3 Budget Discussion email thread, schedule a meeting. Priya suggested Thursday or Friday, Anil prefers mornings, and we need 1 hour. Find a slot and book it.",
+        "expected_outcome": {
+          "action": "create_event",
+          "event": {"title": "Q3 Budget Discussion", "duration": 60, "day": "Thursday or Friday morning", "attendees": ["Priya", "Anil"]}
+        },
+        "constraint_checklist": ["1_hour", "thursday_or_friday", "morning", "both_available", "title_from_thread"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "That budget email chain — can you just turn it into a meeting? You can see who needs to be there and when they're free.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["1_hour", "thursday_or_friday", "morning", "both_available", "title_from_thread"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "From the Q3 Budget Discussion thread: schedule 1-hour meeting, Thursday or Friday morning, with Priya and Anil. Attach the Q3_Budget_Draft.xlsx. Add agenda from email key points. Send calendar invite with summary of the thread. Book a room. Set 1-day advance reminder for all.",
+        "expected_outcome": {
+          "action": "create_event_from_thread_complex"
+        },
+        "constraint_checklist": ["1_hour", "correct_days", "morning", "both_attendees", "attachment", "agenda_from_thread", "thread_summary", "room_booked", "advance_reminder"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "current_vs_stale",
+        "prompt": "Schedule the Q3 Budget Discussion meeting. Priya said Thursday works, but she just updated her calendar and is now unavailable Thursday morning.",
+        "priority_rule": "Current calendar (unavailable) takes precedence over email statement (Thursday works).",
+        "expected_outcome": {
+          "action": "use_current_availability",
+          "explanation": "Priya's calendar now shows Thursday morning unavailable. Scheduling for Friday morning instead."
+        },
+        "constraint_checklist": ["uses_current_not_stale", "books_friday", "explains_change"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Set up that budget meeting from the emails.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["which_email_thread", "confirm_attendees", "confirm_duration"]
+        },
+        "constraint_checklist": ["confirms_which_thread", "confirms_details"]
+      }
+    }
+  },
+  {
+    "family_id": "SCHED-020",
+    "domain": "scheduling",
+    "base_goal": "Optimize a day's schedule by reordering meetings to minimize gaps",
+    "environment": {
+      "calendar": [
+        {"event": "Meeting A", "day": "Friday", "time": "09:00-09:30", "movable": true, "id": "EVT-2001"},
+        {"event": "Meeting B", "day": "Friday", "time": "11:00-12:00", "movable": true, "id": "EVT-2002"},
+        {"event": "Lunch", "day": "Friday", "time": "12:30-13:30", "movable": false, "id": "EVT-2003"},
+        {"event": "Meeting C", "day": "Friday", "time": "15:00-15:30", "movable": true, "id": "EVT-2004"},
+        {"event": "Meeting D", "day": "Friday", "time": "16:30-17:00", "movable": true, "id": "EVT-2005"}
+      ],
+      "policies": ["Immovable events stay fixed", "Minimum 15-min buffer between meetings"]
+    },
+    "variants": {
+      "neutral": {
+        "variant_type": "baseline",
+        "prompt": "Optimize my Friday schedule to minimize gaps between meetings. Lunch is fixed. Move the rest to create the tightest possible schedule with 15-minute buffers.",
+        "expected_outcome": {
+          "action": "reorder_events",
+          "optimized_schedule": "Meetings clustered before and after lunch with 15-min buffers"
+        },
+        "constraint_checklist": ["lunch_unmoved", "15min_buffers", "gaps_minimized", "all_meetings_preserved"]
+      },
+      "paraphrase": {
+        "variant_type": "equivalence",
+        "prompt": "My Friday is full of gaps between meetings. Can you pack them tighter? Keep lunch where it is and leave 15 min between each meeting.",
+        "expected_outcome": "same as neutral",
+        "constraint_checklist": ["lunch_unmoved", "15min_buffers", "gaps_minimized", "all_meetings_preserved"]
+      },
+      "high_constraint": {
+        "variant_type": "constraint_load",
+        "prompt": "Optimize Friday: cluster meetings before and after lunch. Keep lunch at 12:30. Use 15-min buffers. Move Meeting A to right before lunch. Put C and D back-to-back in the afternoon. Keep at least 2 hours of free time after all meetings. Notify all attendees of changes.",
+        "expected_outcome": {
+          "action": "reorder_events_constrained"
+        },
+        "constraint_checklist": ["lunch_fixed", "15min_buffers", "meeting_a_before_lunch", "c_d_back_to_back", "2hr_free_after", "attendees_notified"]
+      },
+      "conflict": {
+        "variant_type": "conflict",
+        "conflict_type": "goal_vs_format",
+        "prompt": "Optimize Friday but don't move any meetings. Just make the gaps disappear.",
+        "priority_rule": "Cannot eliminate gaps without moving meetings. Contradictory request.",
+        "expected_outcome": {
+          "action": "explain_contradiction",
+          "explanation": "Cannot reduce gaps without moving meetings. Would you like me to move the movable ones?"
+        },
+        "constraint_checklist": ["identifies_contradiction", "explains_clearly", "offers_alternative"]
+      },
+      "ambiguous": {
+        "variant_type": "ambiguity",
+        "prompt": "Fix my Friday.",
+        "expected_outcome": {
+          "action": "request_clarification",
+          "missing_info": ["what_to_fix", "optimization_criteria", "which_meetings_movable"]
+        },
+        "constraint_checklist": ["asks_what_to_fix", "asks_constraints"]
+      }
+    }
+  }
+]
