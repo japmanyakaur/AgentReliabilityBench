@@ -47,46 +47,61 @@ class BaseProvider(ABC):
 
 
 class OpenAIProvider(BaseProvider):
+    """OpenAI provider using raw HTTP to avoid SDK/pydantic version conflicts."""
+
     def __init__(self, model_id: str):
-        from openai import OpenAI
-        self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        import httpx
+        self.api_key = os.environ["OPENAI_API_KEY"]
         self.model_id = model_id
+        self.http_client = httpx.Client(
+            base_url="https://api.openai.com/v1",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=120.0,
+        )
 
     def complete(self, messages, temperature=0.7, max_tokens=2048, tools=None):
         t0 = time.time()
-        kwargs = dict(
-            model=self.model_id,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        payload = {
+            "model": self.model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
         if tools:
-            kwargs["tools"] = tools
-            kwargs["tool_choice"] = "auto"
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
 
-        resp = self.client.chat.completions.create(**kwargs)
+        resp = self.http_client.post("/chat/completions", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
         latency = (time.time() - t0) * 1000
 
-        choice = resp.choices[0]
+        choice = data["choices"][0]
+        msg = choice["message"]
+
         tool_calls = None
-        if choice.message.tool_calls:
+        if msg.get("tool_calls"):
             tool_calls = [
                 {
-                    "name": tc.function.name,
-                    "arguments": json.loads(tc.function.arguments),
+                    "name": tc["function"]["name"],
+                    "arguments": json.loads(tc["function"]["arguments"]),
                 }
-                for tc in choice.message.tool_calls
+                for tc in msg["tool_calls"]
             ]
 
+        usage = data.get("usage", {})
         return LLMResponse(
-            content=choice.message.content or "",
-            model=resp.model,
-            input_tokens=resp.usage.prompt_tokens,
-            output_tokens=resp.usage.completion_tokens,
+            content=msg.get("content") or "",
+            model=data.get("model", self.model_id),
+            input_tokens=usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0) or 0,
+            output_tokens=usage.get("completion_tokens", 0) or usage.get("output_tokens", 0) or 0,
             latency_ms=latency,
             tool_calls=tool_calls,
-            finish_reason=choice.finish_reason,
-            raw=resp.model_dump(),
+            finish_reason=choice.get("finish_reason", "stop"),
+            raw=data,
         )
 
 
@@ -97,7 +112,6 @@ class AnthropicProvider(BaseProvider):
         self.model_id = model_id
 
     def complete(self, messages, temperature=0.7, max_tokens=2048, tools=None):
-        # Separate system message if present
         system = None
         user_messages = []
         for m in messages:
@@ -136,6 +150,12 @@ class AnthropicProvider(BaseProvider):
             elif block.type == "tool_use":
                 tool_calls.append({"name": block.name, "arguments": block.input})
 
+        raw = None
+        try:
+            raw = resp.model_dump()
+        except Exception:
+            raw = None
+
         return LLMResponse(
             content="\n".join(content_parts),
             model=resp.model,
@@ -144,25 +164,22 @@ class AnthropicProvider(BaseProvider):
             latency_ms=latency,
             tool_calls=tool_calls if tool_calls else None,
             finish_reason=resp.stop_reason,
-            raw=resp.model_dump(),
+            raw=raw,
         )
 
 
 class GoogleProvider(BaseProvider):
-    """Google Gemini provider with built-in rate limiting for free tier."""
+    """Google Gemini provider using the new google.genai SDK."""
 
-    # Class-level rate limiter shared across all GoogleProvider instances
     _last_call_time = 0.0
-    _min_interval = 4.5  # seconds between calls (15 RPM ≈ 4s, with safety margin)
+    _min_interval = 4.5
 
     def __init__(self, model_id: str):
-        import google.generativeai as genai
-        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-        self.model = genai.GenerativeModel(model_id)
+        from google import genai
+        self.client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
         self.model_id = model_id
 
     def _rate_limit_wait(self):
-        """Wait if needed to stay under 15 RPM free-tier limit."""
         now = time.time()
         elapsed = now - GoogleProvider._last_call_time
         if elapsed < self._min_interval:
@@ -172,11 +189,22 @@ class GoogleProvider(BaseProvider):
         GoogleProvider._last_call_time = time.time()
 
     def complete(self, messages, temperature=0.7, max_tokens=2048, tools=None):
-        # Convert OpenAI message format → Gemini format
-        parts = []
+        from google.genai import types
+
+        contents = []
         for m in messages:
             role = "user" if m["role"] in ("user", "system") else "model"
-            parts.append({"role": role, "parts": [m["content"]]})
+            contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=m["content"])],
+                )
+            )
+
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -184,25 +212,34 @@ class GoogleProvider(BaseProvider):
 
             try:
                 t0 = time.time()
-                resp = self.model.generate_content(
-                    parts,
-                    generation_config={"temperature": temperature, "max_output_tokens": max_tokens},
+                resp = self.client.models.generate_content(
+                    model=self.model_id,
+                    contents=contents,
+                    config=config,
                 )
                 latency = (time.time() - t0) * 1000
 
+                text = ""
+                if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+                    text = resp.candidates[0].content.parts[0].text or ""
+
+                input_tokens = 0
+                output_tokens = 0
+                if hasattr(resp, 'usage_metadata') and resp.usage_metadata:
+                    input_tokens = getattr(resp.usage_metadata, 'prompt_token_count', 0) or 0
+                    output_tokens = getattr(resp.usage_metadata, 'candidates_token_count', 0) or 0
+
                 return LLMResponse(
-                    content=resp.text if resp.text else "",
+                    content=text,
                     model=self.model_id,
-                    input_tokens=resp.usage_metadata.prompt_token_count if resp.usage_metadata else 0,
-                    output_tokens=resp.usage_metadata.candidates_token_count if resp.usage_metadata else 0,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                     latency_ms=latency,
                     finish_reason="stop",
                 )
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower():
-                    # Check if it's a DAILY quota — look for "PerDay" in quota ID
-                    # or retry delay > 600 seconds (10 minutes)
                     is_daily = "PerDay" in err_str
                     if not is_daily:
                         import re
@@ -217,7 +254,6 @@ class GoogleProvider(BaseProvider):
                             "Saving partial results and stopping."
                         )
 
-                    # Per-minute rate limit — wait and retry
                     if attempt < max_retries - 1:
                         logger.warning(f"Rate limited (attempt {attempt+1}/{max_retries}), waiting 60s...")
                         time.sleep(60)
@@ -227,49 +263,143 @@ class GoogleProvider(BaseProvider):
 
 
 class TogetherProvider(BaseProvider):
+    """Together AI provider using raw HTTP (same pattern as OpenAI)."""
+
     def __init__(self, model_id: str):
-        from openai import OpenAI
-        self.client = OpenAI(
-            api_key=os.environ["TOGETHER_API_KEY"],
-            base_url="https://api.together.xyz/v1",
-        )
+        import httpx
         self.model_id = model_id
+        self.http_client = httpx.Client(
+            base_url="https://api.together.xyz/v1",
+            headers={
+                "Authorization": f"Bearer {os.environ['TOGETHER_API_KEY']}",
+                "Content-Type": "application/json",
+            },
+            timeout=120.0,
+        )
 
     def complete(self, messages, temperature=0.7, max_tokens=2048, tools=None):
         t0 = time.time()
-        kwargs = dict(
-            model=self.model_id,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        payload = {
+            "model": self.model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
         if tools:
-            kwargs["tools"] = tools
-            kwargs["tool_choice"] = "auto"
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
 
-        resp = self.client.chat.completions.create(**kwargs)
+        resp = self.http_client.post("/chat/completions", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
         latency = (time.time() - t0) * 1000
 
-        choice = resp.choices[0]
+        choice = data["choices"][0]
+        msg = choice["message"]
+
         tool_calls = None
-        if choice.message.tool_calls:
+        if msg.get("tool_calls"):
             tool_calls = [
                 {
-                    "name": tc.function.name,
-                    "arguments": json.loads(tc.function.arguments),
+                    "name": tc["function"]["name"],
+                    "arguments": json.loads(tc["function"]["arguments"]),
                 }
-                for tc in choice.message.tool_calls
+                for tc in msg["tool_calls"]
             ]
 
+        usage = data.get("usage", {})
         return LLMResponse(
-            content=choice.message.content or "",
-            model=resp.model,
-            input_tokens=resp.usage.prompt_tokens if resp.usage else 0,
-            output_tokens=resp.usage.completion_tokens if resp.usage else 0,
+            content=msg.get("content") or "",
+            model=data.get("model", self.model_id),
+            input_tokens=usage.get("prompt_tokens", 0) or 0,
+            output_tokens=usage.get("completion_tokens", 0) or 0,
             latency_ms=latency,
             tool_calls=tool_calls,
-            finish_reason=choice.finish_reason,
+            finish_reason=choice.get("finish_reason", "stop"),
         )
+
+
+class GroqProvider(BaseProvider):
+    """Groq provider using raw HTTP with rate limiting."""
+
+    _last_call_time = 0.0
+    _min_interval = 2.5
+
+    def __init__(self, model_id: str):
+        import httpx
+        self.model_id = model_id
+        self.http_client = httpx.Client(
+            base_url="https://api.groq.com/openai/v1",
+            headers={
+                "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}",
+                "Content-Type": "application/json",
+            },
+            timeout=120.0,
+        )
+
+    def _rate_limit_wait(self):
+        now = time.time()
+        elapsed = now - GroqProvider._last_call_time
+        if elapsed < self._min_interval:
+            wait_time = self._min_interval - elapsed
+            logger.debug(f"Groq rate limit: waiting {wait_time:.1f}s")
+            time.sleep(wait_time)
+        GroqProvider._last_call_time = time.time()
+
+    def complete(self, messages, temperature=0.7, max_tokens=2048, tools=None):
+        self._rate_limit_wait()
+
+        t0 = time.time()
+        payload = {
+            "model": self.model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = self.http_client.post("/chat/completions", json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                latency = (time.time() - t0) * 1000
+
+                choice = data["choices"][0]
+                msg = choice["message"]
+
+                tool_calls = None
+                if msg.get("tool_calls"):
+                    tool_calls = [
+                        {
+                            "name": tc["function"]["name"],
+                            "arguments": json.loads(tc["function"]["arguments"]),
+                        }
+                        for tc in msg["tool_calls"]
+                    ]
+
+                usage = data.get("usage", {})
+                return LLMResponse(
+                    content=msg.get("content") or "",
+                    model=data.get("model", self.model_id),
+                    input_tokens=usage.get("prompt_tokens", 0) or 0,
+                    output_tokens=usage.get("completion_tokens", 0) or 0,
+                    latency_ms=latency,
+                    tool_calls=tool_calls,
+                    finish_reason=choice.get("finish_reason", "stop"),
+                )
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "rate" in err_str.lower():
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Groq rate limited (attempt {attempt+1}/{max_retries}), waiting 30s...")
+                        time.sleep(30)
+                        GroqProvider._last_call_time = time.time()
+                        continue
+                raise
 
 
 def get_provider(provider_name: str, model_id: str) -> BaseProvider:
@@ -279,6 +409,7 @@ def get_provider(provider_name: str, model_id: str) -> BaseProvider:
         "anthropic": AnthropicProvider,
         "google": GoogleProvider,
         "together": TogetherProvider,
+        "groq": GroqProvider,
     }
     if provider_name not in providers:
         raise ValueError(f"Unknown provider: {provider_name}. Available: {list(providers.keys())}")
