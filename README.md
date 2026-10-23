@@ -1,10 +1,8 @@
 # AgentReliabilityBench
 
-A controlled benchmark for measuring LLM agent reliability — consistency, conflict resolution, and repeatability — under instruction variation.
-
-## Paper
-
 **"AgentReliabilityBench: A Controlled Benchmark for Reliability, Consistency, and Conflict Resolution in LLM Agents"**
+
+A controlled benchmark for measuring LLM agent reliability — consistency, conflict resolution, and repeatability — under instruction variation.
 
 ## Quick Start
 
