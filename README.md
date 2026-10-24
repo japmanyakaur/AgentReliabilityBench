@@ -9,8 +9,8 @@ A controlled benchmark for measuring LLM agent reliability — consistency, conf
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AgentReliabilityBench.git
-cd AgentReliabilityBench
+git clone https://anonymous.4open.science/r/AgentReliabilityBench
+cd AgentReliabilityBench/benchmark
 python -m venv venv
 source venv/bin/activate        # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -43,16 +43,16 @@ Get-Content .env | ForEach-Object {
 python run_benchmark.py --pilot
 ```
 
-This runs 1 model (GPT-4o-mini), 1 configuration (direct), 2 repeats — costs ~$0.50.
+This runs 1 model (Gemini 3.5 Flash Lite), 1 configuration (direct), 2 repeats on 5 task families.
 
 ### 4. Run the full benchmark
 
 ```bash
-# All models, all configs, 5 repeats (~27,000 API calls)
+# All models, all configs, 5 repeats
 python run_benchmark.py
 
 # Or customize:
-python run_benchmark.py --models gpt-4o-mini gemini-1.5-flash --configs direct cot --repeats 3
+python run_benchmark.py --models gpt-4o-mini gemini-3.5-flash-lite --configs direct cot --repeats 3
 
 # Test a single task family:
 python run_benchmark.py --pilot --family SCHED-001
@@ -62,20 +62,23 @@ python run_benchmark.py --pilot --family SCHED-001
 
 ```
 AgentReliabilityBench/
-├── run_benchmark.py                          # CLI entry point
-├── requirements.txt                          # Python dependencies
-├── .env.example                              # API key template
-├── task_families_scheduling.json             # 20 scheduling task families
-├── task_families_customer_service.json        # 20 customer service task families
-├── task_families_information_retrieval.json   # 20 information retrieval task families
-└── evaluator/
-    ├── __init__.py
-    ├── config.py       # Model registry (7 models), 3 agent configurations
-    ├── providers.py    # OpenAI / Anthropic / Google / Together API abstraction
-    ├── judge.py        # LLM-as-judge (GPT-4o-mini) constraint evaluation
-    ├── metrics.py      # All 7 metrics: DCR, IAR, CRA, CPS, RS@k, AHR, RD
-    ├── stats.py        # Statistical analysis: bootstrap CI, permutation tests, ICC
-    └── runner.py       # Full pipeline orchestration
+├── README.md
+├── LICENSE
+└── benchmark/
+    ├── run_benchmark.py                          # CLI entry point
+    ├── requirements.txt                          # Python dependencies
+    ├── .env.example                              # API key template
+    ├── task_families_scheduling.json             # 20 scheduling task families
+    ├── task_families_customer_service.json        # 20 customer service task families
+    ├── task_families_information_retrieval.json   # 20 information retrieval task families
+    └── evaluator/
+        ├── __init__.py
+        ├── config.py       # Model registry (10 models), 3 agent configurations
+        ├── providers.py    # OpenAI / Anthropic / Google / Together / Groq API abstraction
+        ├── judge.py        # LLM-as-judge (Gemini 3.5 Flash Lite) constraint evaluation
+        ├── metrics.py      # All 7 metrics: DCR, IAR, CRA, CPS, RS@k, AHR, RD
+        ├── stats.py        # Statistical analysis: bootstrap CI, permutation tests, ICC
+        └── runner.py       # Full pipeline orchestration
 ```
 
 ## Metrics
@@ -92,15 +95,25 @@ AgentReliabilityBench/
 
 ## Models Supported
 
+The benchmark supports multiple models across five providers. The following models were evaluated in the paper:
+
+| Model | Provider | API Key Needed |
+|-------|----------|---------------|
+| GPT-4o-mini | OpenAI | `OPENAI_API_KEY` |
+| Gemini 3.5 Flash Lite | Google | `GOOGLE_API_KEY` |
+| GPT-OSS 120B (Llama 3.3 70B) | Groq | `GROQ_API_KEY` |
+| Qwen 3.8 27B (Qwen 3 32B) | Groq | `GROQ_API_KEY` |
+
+Additional models in the registry (not evaluated in the paper):
+
 | Model | Provider | API Key Needed |
 |-------|----------|---------------|
 | GPT-4o | OpenAI | `OPENAI_API_KEY` |
-| GPT-4o-mini | OpenAI | `OPENAI_API_KEY` |
 | Claude 3.5 Sonnet | Anthropic | `ANTHROPIC_API_KEY` |
-| Gemini 1.5 Flash | Google | `GOOGLE_API_KEY` |
 | Llama 3.1 8B | Together AI | `TOGETHER_API_KEY` |
 | Llama 3.1 70B | Together AI | `TOGETHER_API_KEY` |
 | Qwen 2.5 72B | Together AI | `TOGETHER_API_KEY` |
+| Llama 3.1 8B | Groq | `GROQ_API_KEY` |
 
 ## Output
 
@@ -119,7 +132,7 @@ Results are saved to `results/YYYYMMDD_HHMMSS/`:
 --temperature  Sampling temperature (default: 0.7)
 --pilot        Quick test: 1 model, 1 config, 2 repeats
 --family       Run only one task family (e.g., SCHED-001)
---judge-model  Judge model (default: gpt-4o-mini)
+--judge-model  Judge model (default: gemini-3.5-flash-lite)
 --workers      Parallel workers (default: 4)
 --output-dir   Where to save results (default: results/)
 --task-dir     Where task family JSONs live (default: current dir)
@@ -132,10 +145,10 @@ MIT
 ## Citation
 
 ```bibtex
-@article{kapoor2026agentreliabilitybench,
+@inproceedings{anonymous2026agentreliabilitybench,
   title={AgentReliabilityBench: A Controlled Benchmark for Reliability, Consistency, and Conflict Resolution in LLM Agents},
-  author={Kapoor, Manmeet Singh and Kaur, Gurleen},
-  journal={IEEE Access},
+  author={Anonymous},
+  booktitle={Proceedings of the International Conference on Computing and Communication Systems (COMS2-2026), Springer CCIS},
   year={2026}
 }
 ```
